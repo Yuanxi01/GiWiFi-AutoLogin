@@ -1,0 +1,1391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+        <title>欢迎使用GiWiFi</title>
+    <meta name="robots" content="noindex, nofollow">
+<link rel="stylesheet" href="/gportal/public/static/source/plugins/bootstrap/css/bootstrap.min.css">
+<!--<link rel="stylesheet" type="text/css" href="/gportal/public/static/source/plugins/select2/css/core.css">-->
+<script type="text/javascript" src="/gportal/public/static/source/js/jquery-3.6.0.min.js"></script>
+<script type="text/javascript" src="/gportal/public/static/source/plugins/bootstrap/js/bootstrap.min.js"></script>
+<script type="text/javascript" src="/gportal/public/static/source/plugins/artDialog/jquery.artDialog.js?skin=green"></script>
+<script type="text/javascript" src="/gportal/public/static/source/plugins/artDialog/plugins/iframeTools.js"></script>
+<script type="text/javascript" src="/gportal/public/static/source/plugins/crypto/aes.js"></script>
+<script type="text/javascript" src="/gportal/public/static/source/plugins/crypto/pad-zeropadding-min.js"></script>
+<!--
+<script type="text/javascript" src="/gportal/public/static/source/plugins/select2/select2.min.js"></script>-->
+
+    <script type="text/javascript">
+    //加密请求参数
+    function cryptoEncode(data,iv){
+        var key = CryptoJS.enc.Utf8.parse("1234567887654321");
+        var ivv = CryptoJS.enc.Utf8.parse(iv);
+        var encrypted = CryptoJS.AES.encrypt(data, key, { iv: ivv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.ZeroPadding });
+        data = encrypted.toString();
+        var msg = {'data':data,'iv':iv};
+        return msg;
+    }
+</script>
+<script type="text/javascript">
+    var regPhone = /^0?1[3|4|5|6|7|8|9][0-9]\d{8}$/;
+    //var regPw = /^(?=.*[a-zA-Z])(?=.*\d)[^]{8,12}$/;
+    //var regPw = /^(?=.*\d)(?=.*[a-zA-Z])[a-zA-Z0-9]{8,12}$/;
+    var regPw = /^(?=.*\d)(?=.*[a-zA-Z])[a-zA-Z0-9@_&!]{8,12}$/;
+    var reg = /^0?1[3|4|5|6|7|8|9][0-9]\d{8}$|^[a-zA-Z0-9_]{6,16}$/;
+    var browser=navigator.appName;
+    var b_version=navigator.appVersion;
+    var iPhone = b_version.indexOf('iPhone') > -1; //是否为iPhone或者QQHD浏览器
+    var iPad = b_version.indexOf('iPad') > -1; //是否iPad
+    var isiOS = !!b_version.match(/\(i[^;]+;( U;)? CPU.+Mac OS X/); //ios终端
+    var isMac = b_version.indexOf('Macintosh') > -1; //ios终端
+    var isWinPC = b_version.indexOf('Windows') > -1;
+    var isAndroid = b_version.indexOf('Android') > -1 || b_version.indexOf('Linux') > -1; //android终端
+    var isMiuiBrowser = b_version.indexOf('Build/SKG1') > -1 || b_version.indexOf('Build/SKQ1') > -1 || b_version.indexOf('Build/UKQ1') > -1;
+    /**
+     * @access public
+     * @author gbcom
+     * @deprecated 使用ajax操作的数据返回的结果提示
+     * @param info		提示信息
+     * @param second	弹出框显示多少秒关闭
+     * @param result	返回结果 成功("succeed") OR 失败("error")
+     * @param url		弹出框关闭后执行的操作
+     * @param lockMenu		是否锁屏 false OR true啊
+     * @since 2015年7月14日
+     */
+    function showmessage(info, second, result, url, lockMenu){
+        // 默认值
+        if (result == undefined){
+            result = 'succeed';
+        }
+        if (url == undefined){
+            url = null;
+        }
+        if (lockMenu == undefined){
+            lockMenu = true;
+        }
+        if (second != undefined){
+            if (window.top.art.dialog.list['beforeSendId']){
+                window.top.art.dialog({id:'beforeSendId'}).close();
+            }
+            window.top.art.dialog({
+                id: 'msgId',
+                content: info,
+                width:'auto',
+                icon: result,
+                lock: lockMenu,
+                fixed: true,
+                zIndex: 65536,
+                init: function () {
+                    var that = this, i = second;
+                    var fn = function () {
+                        that.title(i + '秒后关闭');
+                        !i && that.close();
+                        i --;
+                    };
+                    timer = setInterval(fn, 1000);
+                    fn();
+                },
+                close: function () {
+                    clearInterval(timer);
+                    if(url != null){
+                        window.location.href = url;
+                    }
+                }
+            }).show();
+        }else{
+            if (window.top.art.dialog.list['beforeSendId']){
+                window.top.art.dialog({id:'beforeSendId'}).close();
+            }
+            art.dialog.alert(info);
+        }
+    }
+
+    function isEmpty(val) {
+        if(val == null || val == undefined || val == ''){
+            return true;
+        }else{
+            return false;
+        }
+    }
+
+    function resultSuccess(message,data){
+        let returnData = {
+            code:true,
+			message:message,
+	        data:data
+        }
+        return returnData;
+    }
+
+    function resultError(message,data){
+        let returnData = {
+            code:false,
+            message:message,
+            data:data
+        }
+        return returnData;
+    }
+
+    function checkResult(returnData){
+        return returnData.code;
+    }
+
+    function getResultInfo(returnData){
+        return returnData.message;
+    }
+
+    function getResultData(returnData){
+	    return returnData.data;
+    }
+
+    function setUrlParam(url,arg,arg_val){
+	    var pattern=arg+'=([^&]*)';
+	    var replaceText=arg+'='+arg_val;
+	    if(url.match(pattern)){
+		    var tmp='/('+ arg+'=)([^&]*)/gi';
+		    tmp=url.replace(eval(tmp),replaceText);
+		    return tmp;
+	    }else{
+		    if(url.match('[\?]')){
+			    return url+'&'+replaceText;
+		    }else{
+			    return url+'?'+replaceText;
+		    }
+	    }
+	    return url+'\n'+arg+'\n'+arg_val;
+    }
+</script>
+<script type="text/javascript">
+    function getMaxtouchPoints() {
+        let maxTouchPoints = 0;
+        if (typeof navigator.maxTouchPoints !== 'undefined') {
+            maxTouchPoints = navigator.maxTouchPoints
+        } else if (typeof navigator.msMaxTouchPoints !== 'undefined') {
+            maxTouchPoints = navigator.msMaxTouchPoints
+        }
+        return maxTouchPoints;
+    }
+
+    function isMobile() {
+        var u = navigator.userAgent, app = navigator.appVersion;
+        var isWindows = app.indexOf('Windows') > -1;
+        var isMac = app.indexOf('Macintosh') > -1;
+        var isAndroid = u.indexOf('Android') > -1 || u.indexOf('Linux') > -1;
+        var isIOS = !!u.match(/\(i[^;]+;( U;)? CPU.+Mac OS X/);
+        if (isAndroid || isIOS) {
+            return true;
+        }
+        if (isMac) {
+            if (getMaxtouchPoints()>0){
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function reloadMobile() {
+        let href = window.location.href;
+        if (isMobile()) {
+	        window.location.href = setUrlParam(href,'is_mobile',1);
+        }
+        return "";
+    }
+</script>
+
+<script type="text/javascript">
+    //index->login页面
+    function redirectToLogin(loginType){
+        let href = window.location.href;
+        href = changeUrlParam(href,'pagetype','login');
+        href = changeUrlParam(href,'logintype',loginType);
+        window.location.href = href;
+    }
+
+    function changeUrlParam(url,arg,arg_val){
+        var pattern=arg+'=([^&]*)';
+        var replaceText=arg+'='+arg_val;
+        if(url.match(pattern)){
+            var tmp='/('+ arg+'=)([^&]*)/gi';
+            tmp=url.replace(eval(tmp),replaceText);
+            return tmp;
+        }else{
+            if(url.match('[\?]')){
+                return url+'&'+replaceText;
+            }else{
+                return url+'?'+replaceText;
+            }
+        }
+        return url+'\n'+arg+'\n'+arg_val;
+    }
+
+    let countDownObj = null;
+    let count = 60;
+
+    function countDown(buttonId) {
+        $("#"+buttonId).text(count + 's');
+        if(count < 0){
+            count = 60;
+            clearInterval(countDownObj);
+            $("#"+buttonId).text('获取验证码');
+            $('.btn').removeAttr("disabled");
+	        hideSmsTip();
+        }
+        count--;
+    }
+
+    function hideSmsTip(){
+	    $(".sms-tip").text('');
+	    $(".sms-tip").hide();
+    }
+
+    function initCountDown() {
+        if(countDownObj != null){
+            clearInterval(countDownObj);
+        }
+        count = 60;
+        $(".getVcode").text('获取验证码');
+        $('.btn').removeAttr("disabled");
+	    hideSmsTip();
+    }
+
+    function showPassword(id) {
+        if(id != undefined && id != '' && id != null){
+            $(".icon" + id).removeClass('glyphicon-eye-close');
+            $(".icon" + id).addClass('glyphicon-eye-open');
+            $(".input" + id).attr('type','text');
+        }else{
+            $(".password-icon").removeClass('glyphicon-eye-close');
+            $(".password-icon").addClass('glyphicon-eye-open');
+            $(".password").attr('type','text');
+        }
+    }
+
+    function hidePassword(id) {
+        if(id != undefined && id != '' && id != null){
+            $(".icon" + id).removeClass('glyphicon-eye-open');
+            $(".icon" + id).addClass('glyphicon-eye-close');
+            $(".input" + id).attr('type','password');
+        }else{
+            $(".password-icon").removeClass('glyphicon-eye-open');
+            $(".password-icon").addClass('glyphicon-eye-close');
+            $(".password").attr('type','password');
+        }
+    }
+
+    function timeKeeper(start){
+        if(start != ""){
+            var nowDate=new Date();
+            var now = parseInt(nowDate.getTime()/1000);
+            var duration = now - start;
+            var h = parseInt(duration/3600);
+            var m = parseInt((duration-h*3600)/60);
+            var s = (duration - h*3600 - m*60);
+            h = h.toString();
+            m = m.toString();
+            s = s.toString();
+            if(h.length<2){
+                h = "0"+h;
+            }
+            if(m.length<2){
+                m = "0"+m;
+            }
+            if(s.length<2){
+                s = "0"+s;
+            }
+            $("#online_duration .h").html(h);
+            $("#online_duration .m").html(m);
+            $("#online_duration .s").html(s);
+        }
+    }
+
+    /**
+     * 获取验证码
+    * */
+    function getVcode(action,formId,buttonId,accountId) {
+        let account = $("#"+accountId).val();
+        if(!account){
+            showmessage("账号不能为空!", 4,'warning');
+            return false;
+        }
+        if (!regPhone.test(account)) {
+            //showmessage("手机号码格式无效!", 4,'warning');
+            //return false;
+        }
+        var form = "#" + formId;
+        if($(form + " input[name=serverAgreement]").length > 0){
+            var agreement =  $(form + " input[name=serverAgreement]").is(':checked');
+            if (!agreement) {
+                showmessage("请同意并勾选用户服务协议。", 4,'warning');
+                return false;
+            }
+        }
+        var btn = "#"+buttonId;
+        $(btn).attr('disabled', 'disabled');
+        var iv =  $("#"+ formId +" input[name=iv]").val();
+        var accountType = $('#account_type').val();
+        var formData = cryptoEncode($("#" + formId).serialize()+'&action_type='+action+'&account_type='+accountType,iv);
+        $.ajax({
+            url:"/gportal/Web/getVcode",
+            data : formData,
+            type : "post",
+            async : false,
+            dataType : "json",
+            success : function(data) {
+                if (data.status == 1) {
+                    $(btn).text('正在发送...');
+	                $(".sms-tip").text(data.info);
+	                $(".sms-tip").show();
+                	countDownObj = setInterval(countDown,1000,buttonId);
+                } else {
+                    $(btn).text('获取验证码');
+                	showmessage(data.info, 4,'error');
+                	setTimeout(function(buttonId){$("#"+buttonId).removeAttr('disabled');},3000,buttonId);
+                	return false;
+                }
+                return false;
+            },error:function(jqXHR,textStatus,errorThrown){
+                setTimeout(function(buttonId){$("#"+buttonId).removeAttr('disabled');},3000,buttonId);
+                return false;
+            }
+        });
+    }
+    
+    function login(formId) {
+        var form = "#" + formId;
+        var account = $(form + " input[name=user_account]" ).val();
+        var password = $(form + " input[name=user_password]" ).val();
+        var accountType = $(form + " select[name=account_type]" ).val();
+        if(!account){
+            showmessage("账号不能为空!", 4,'warning');
+            return false;
+        }
+        if(!password){
+            showmessage("密码不能为空!", 4,'warning');
+            return false;
+        }
+        if(accountType == "2"){
+            if (!regPhone.test(account)) {
+                //showmessage("手机号码格式无效!", 4,'warning');
+                //return false;
+            }
+        }
+        if($(form + " input[name=serverAgreement]").length > 0){
+            var agreement =  $(form + " input[name=serverAgreement]").is(':checked');
+            if (!agreement) {
+                showmessage("请同意并勾选用户服务协议。", 4,'warning');
+                return false;
+            }
+        }
+        var btn = $(".btn");
+        btn.attr('disabled', 'disabled');
+        var iv =  $(form + " input[name=iv]").val();
+        var formData = cryptoEncode($(form).serialize(),iv);
+
+        if ($('#remember-me').data('selected') == 2) {
+            rememberMe(account, accountType, password);
+        } else {
+            forgetMe();
+        }
+        $.ajax({
+            url:"/gportal/Web/loginAction",
+            data : formData,
+            type : "post",
+            async : false,
+            dataType : "json",
+            success : function(data) {
+                btn.removeAttr('disabled');
+                if (data.status == 0) {
+                    //失败
+                    if(data.data.hasOwnProperty('resultCode')){
+                        if(data.data.resultCode == '40'){
+                            window.location.href = data.data['resultData'];
+                        }else if(data.data.resultCode == '124'){
+                            window.top.art.dialog.confirm(data.info, function() {
+                                $.post(data.data['resultData'],{},function () {});
+                            }, function() {
+                                window.top.art.dialog({id:"Confirm"}).close();
+                                return false;
+                            });
+                        }else if(data.data.resultCode == '114' && accountType == '2'){
+                            window.top.art.dialog.confirm(data.info, function() {
+                                showSetPwd(account);
+                            }, function() {
+                                window.top.art.dialog({id:"Confirm"}).close();
+                                return false;
+                            });
+                        }else if(data.data.resultCode == '152'){
+                            window.top.art.dialog.confirm(data.info, function() {
+                                showChangePwd(account,accountType);
+                            }, function() {
+                                window.top.art.dialog({id:"Confirm"}).close();
+                                return false;
+                            });
+                        } else{
+                            showmessage(data.info, 4, 'error');
+                        }
+                    }else{
+                        showmessage(data.info, 4, 'error');
+                    }
+                } else {
+                    showmessage(data.info, 4, 'succeed',data.data);
+                }
+                return false;
+            },error:function(jqXHR,textStatus,errorThrown){
+                btn.removeAttr('disabled');
+                //closeWait();
+                //showmessage("网络出错,请联系客服", 4, "http://1.2.3.4");
+                return false;
+            },beforeSend:function(){
+                //showWait();
+            }
+        });
+
+    }
+    
+    function showSetPwd(account) {
+        $(".form-item").hide();
+        $("#set_pwd_by_sms_code_tittle").text('设置密码');
+        $("#forgetPwdForm input[name=user_account]" ).val(account);
+        $(".forget-pwd-form-block").show();
+    }
+
+    function showChangePwd(account,accountType) {
+        $(".form-item").hide();
+        $("#set_pwd_by_old_tittle").text('修改密码');
+        $("#modifyPwdForm input[name=user_account]" ).val(account);
+        $("#modifyPwdForm select[name=account_type]" ).val(accountType);
+        $(".modify-pwd-form-block").show();
+    }
+
+    function showFormInit() {
+        $("#set_pwd_by_sms_code_tittle").text('忘记密码');
+        $("#set_pwd_by_old_tittle").text('修改密码');
+        $("input[name=user_account]" ).val($("#loginForm input[name=user_account]" ).val());
+        $("#modifyPwdForm select[name=account_type]" ).val($("#loginForm select[name=account_type]" ).val());
+        hidePassword();
+        initCountDown();
+    }
+
+    function formValueInit(){
+        $("input[name=user_account]" ).val('');
+        $("input[name=user_password]" ).val('');
+        $("input[name=user_password_old]" ).val('');
+        $("input[name=user_password_new]" ).val('');
+    }
+
+    function register(formId) {
+        var form = "#" + formId;
+        var account = $(form + " input[name=user_account]" ).val();
+        var vcode = $(form + " input[name=user_vcode]" ).val();
+        var password = $(form + " input[name=user_password]" ).val();
+        var btn = $('.btn');
+        if(!account){
+            showmessage("账号不能为空!", 4,'warning');
+            return false;
+        }
+        if (!regPhone.test(account)) {
+            showmessage("手机号码格式无效!", 4,'warning');
+            return false;
+        }
+        if(!vcode){
+            showmessage("验证码不能为空!", 4,'warning');
+            return false;
+        }
+        if(!password){
+            showmessage("密码不能为空!", 4,'warning');
+            return false;
+        }
+        if(password.length < 8 || password.length  > 12){
+            showmessage("密码长度在8-12位之间!", 4,'warning');
+            return false;
+        }
+        if(!regPw.test(password) ) {
+            showmessage("密码需包含数字和字母,支持特殊字符@_&!", 4,'warning');
+            return false;
+        }
+        if($(form + " input[name=serverAgreement]").length > 0){
+            var agreement =  $(form + " input[name=serverAgreement]").is(':checked');
+            if (!agreement) {
+                showmessage("请同意并勾选用户服务协议。", 4,'warning');
+                return false;
+            }
+        }
+        btn.attr('disabled', 'disabled');
+        var iv =  $(form + " input[name=iv]").val();
+        var formData = cryptoEncode($(form).serialize(),iv);
+        $.ajax({
+            url : "/gportal/Web/register",
+            data : formData,
+            type : "post",
+            async : false,
+            dataType : "json",
+            success : function(data) {
+                btn.removeAttr('disabled');
+                if (data.status == 1) {
+                    showmessage(data.info, 4, 'succeed',window.location.href);
+                } else {
+                    showmessage(data.info, 4, 'error');
+                }
+                return false;
+            },error:function(jqXHR,textStatus,errorThrown){
+                btn.removeAttr('disabled');
+                //closeWait();
+                //showmessage("网络出错,请联系客服", 4, "http://1.2.3.4");
+                return false;
+            },beforeSend:function(){
+                //showWait();
+            }
+        });
+    }
+
+    //修改密码
+    function modifyPwd(formId) {
+        var form = "#" + formId;
+        var account = $(form + " input[name=user_account]" ).val();
+        var pwdOld = $(form + " input[name=user_password_old]" ).val();
+        var pwdNew = $(form + " input[name=user_password_new]" ).val();
+        var btn = $('.btn');
+        if(!account){
+            showmessage("账号不能为空!", 4,'warning');
+            return false;
+        }
+        if(!pwdOld){
+            showmessage("请输入旧密码!", 4,'warning');
+            return false;
+        }
+        if(!pwdNew){
+            showmessage("请输入新密码!", 4,'warning');
+            return false;
+        }
+        if(pwdNew.length < 8 || pwdNew.length  > 12){
+            showmessage("新密码长度在8-12位之间！", 4,'warning');
+            return false;
+        }
+        if(!regPw.test(pwdNew) ) {
+            showmessage("新密码必须包含数字和字母,支持特殊字符@_&!", 4,'warning');
+            return false;
+        }
+        btn.attr('disabled', 'disabled');
+        var iv =  $(form + " input[name=iv]").val();
+        var formData = cryptoEncode($(form).serialize(),iv);
+        $.ajax({
+            url : "/gportal/Web/modifyPwd",
+            data : formData,
+            type : "post",
+            async : false,
+            dataType : "json",
+            success : function(data) {
+                btn.removeAttr('disabled');
+                if (data.status == 1) {
+                    showmessage(data.info, 4, 'succeed');
+                    setTimeout("window.location.reload()",4000);
+                } else {
+                    showmessage(data.info, 4, 'error');
+                }
+                return false;
+            },error:function(jqXHR,textStatus,errorThrown){
+                btn.removeAttr('disabled');
+                //closeWait();
+                //showmessage("网络出错,请联系客服", 4, "http://1.2.3.4");
+                return false;
+            },beforeSend:function(){
+                //showWait();
+            }
+        });
+    }
+
+    //忘记密码
+    function forgetPwd(formId) {
+        var form = "#" + formId;
+        var account = $(form + " input[name=user_account]" ).val();
+        var vcode = $(form + " input[name=user_vcode]" ).val();
+        var password = $(form + " input[name=user_password]" ).val();
+        var btn = $('.btn');
+        if(!account){
+            showmessage("账号不能为空!", 4,'warning');
+            return false;
+        }
+        if (!regPhone.test(account)) {
+            //showmessage("手机号码格式无效!", 4,'warning');
+           //return false;
+        }
+        if(!vcode){
+            showmessage("验证码不能为空!", 4,'warning');
+            return false;
+        }
+        if(!password){
+            showmessage("新密码不能为空!", 4,'warning');
+            return false;
+        }
+        if(password.length < 8 || password.length  > 12){
+            showmessage("新密码长度在8-12位之间!", 4,'warning');
+            return false;
+        }
+        if(!regPw.test(password) ) {
+            showmessage("新密码必须包含数字和字母,支持特殊字符@_&!", 4,'warning');
+            return false;
+        }
+        btn.attr('disabled', 'disabled');
+        var iv =  $(form + " input[name=iv]").val();
+        var formData = cryptoEncode($(form).serialize(),iv);
+        $.ajax({
+            url : "/gportal/Web/resetPwd",
+            data : formData,
+            type : "post",
+            async : false,
+            dataType : "json",
+            success : function(data) {
+                btn.removeAttr('disabled');
+                if (data.status == 1) {
+                    showmessage(data.info, 4, 'succeed');
+                    setTimeout("window.location.reload()",4000);
+                } else {
+                    showmessage(data.info, 4, 'error');
+                }
+                return false;
+            },error:function(jqXHR,textStatus,errorThrown){
+                btn.removeAttr('disabled');
+                //closeWait();
+                //showmessage("网络出错,请联系客服", 4, "http://1.2.3.4");
+                return false;
+            },beforeSend:function(){
+                //showWait();
+            }
+        });
+    }
+
+    function downloadApp(elementId) {
+        let downloadHref = "/gportal/public/static/html/app/getApp.htm?os=";
+        if(isAndroid){
+            $('#'+elementId).attr('href',downloadHref + 'android');
+        }else {
+        	$.ajax({
+                "type": "POST",
+                "url": "/gportal/Apass/appdownload",
+                "async":false,
+                "data":{'tdata':'+5BM8tAy1nDc7OZC7VpVcLSss5g5lesVuvWrG01Y1mqnYn+fDy+p26FFLl2oRY2nm2y8BrJBXcS7hNw7oTDGbIiEmxhkgdwwErjdNF7AZ98=', 'url':downloadHref},
+                "dataType":"json",
+                "success": function (c) {
+                    $('#'+elementId).attr('href',downloadHref + 'ios');
+                },
+                "error":function () {
+                	$('#'+elementId).attr('href',downloadHref + 'ios');
+                }
+            });
+           
+        }
+    }
+
+    function getCookie(key) {
+        var name = key + "=";
+        var decodedCookie = decodeURIComponent(document.cookie);
+        var ca = decodedCookie.split(';');
+        for(var i = 0; i <ca.length; i++) {
+            var c = ca[i];
+            while (c.charAt(0) == ' ') {
+                c = c.substring(1);
+            }
+            if (c.indexOf(name) == 0) {
+                return c.substring(name.length, c.length);
+            }
+        }
+        return "";
+    }
+
+    function setCookie(key, value) {
+        let keepDays = "7";
+        let d = new Date();
+		d.setTime(d.getTime() + Number(keepDays) * 86400000);
+		document.cookie = key + '=' + value + ';expires=' + d.toUTCString();
+    }
+
+    function rememberMe(ac, act, pd) {
+        setCookie('remember', 2);
+        setCookie('ac', ac);
+        setCookie('act', act);
+        setCookie('pd', pd);
+    }
+
+    function forgetMe() { 
+        setCookie('remember', '');
+        setCookie('ac', '');
+        setCookie('pd', '');
+        setCookie('act', '');
+    }
+
+    function isShowPassText(obj){
+        let id = $(obj).data('id');
+        let showPass = $(".password-icon").hasClass('glyphicon-eye-open');
+        if(id != undefined && id != '' && id != null){
+            showPass = $(".icon" + id).hasClass('glyphicon-eye-open');
+        }
+        if(showPass){
+            hidePassword(id);
+        }else{
+            showPassword(id);
+        }
+    }
+
+    function setRememberMe(obj){
+        let val = $(obj).data('selected');
+        if (val == 2) {
+            $(obj).addClass('refuse').data('selected', 1);
+        } else {
+            $(obj).removeClass('refuse').data('selected', 2);
+        }
+    }
+
+    function showLoginForm(){
+        $(".form-item").hide();
+        $(".login-form-block").show();
+    }
+
+    function offline(obj,formId){
+        $(obj).attr('disabled',true);
+        $.ajax({
+            "type": "POST",
+            "url": "/gportal/Web/logoutAction",
+            "async":false,
+            "data":$("#" + formId).serialize(),
+            "success": function (c) {
+                $(obj).attr('disabled',false);
+                if(c.status == 1){
+                    showmessage(c.info,4,'succeed','http://1.2.3.4');
+                }else{
+                    if(c.data = '133'){
+                        showmessage(c.info,4,'error','http://1.2.3.4');
+                    }else{
+                        showmessage(c.info,4,'error',null);
+                    }
+                }
+            },
+            "error":function () {
+                $(obj).attr('disabled',false);
+            }
+        });
+    }
+</script>
+
+    <style type="text/css">
+    :root {
+    --theme_color: #FFDA0F;
+    --theme_font_color: #052057;
+    --theme_sec_color: #052057;
+    }
+</style>
+<style type="text/css">
+    body{background-image: url("/gportal/public/static/template/2/images/background.jpg");}
+</style>
+<style type="text/css">
+    /*-------------body-------------*/
+    html,body{
+        margin: 0px;
+        width: 100%;
+        height: 100%;
+    }
+    body{
+        background-repeat:no-repeat ;
+        background-size:100% 100%;
+        background-attachment: fixed;
+        /*display:flex;justify-content:center;align-items:center;*/
+    }
+    .main{
+	    width: 100%;
+	    height: 100%;
+	    display: inline-flex;
+	    justify-content: center;
+	    align-items: center;
+    }
+
+    a,a:focus,a:hover{
+        text-decoration:none;
+        cursor: pointer;
+    }
+    /*-------------form button-------------*/
+    .btn-theme, .btn-theme:hover, .btn-theme:focus {
+        background: var(--theme_color);
+        color: var(--theme_font_color);
+    }
+    .btn-blue, .btn-blue:hover, .btn-blue:focus {
+        background: #052057 !important;
+        color: #ffffff !important;
+    }
+    .btn-sec-theme, .btn-sec-theme:hover, .btn-sec-theme:focus {
+        background: var(--theme_sec_color);
+        color: #ffffff;
+    }
+    /*-------------help container-------------*/
+    .help-container{
+        width: 100%;
+        height: 100%;
+        background: #F8F8FF;
+    }
+    .help-container .help-content{
+        width: 70%;
+        background: #ffffff;
+        height: 90%;
+        position: relative;
+        top:5%;
+        left: 15%;
+    }
+    .help-header{
+        padding: 20px 20px 10px;
+    }
+    .help-header h4{
+        margin-top: 5px;
+        margin-bottom: 0px;
+        text-align: center;
+    }
+    .help-body{
+        padding: 0px 20px 20px;
+    }
+    .help-bottom{
+        margin-top: 20px;
+    }
+    .help-bottom button{
+        float: right;
+        margin-right: 50px;
+    }
+    /*-------------container-------------*/
+    .container{
+        /*width: 800px;*/
+        width: 64%;
+        background: #ffffff;
+        border-radius: 8px;
+    }
+    @media screen and (max-width:840px){
+        .container{
+            width: 80%;
+        }
+    }
+    @media screen and (max-width:640px){
+        .container{
+            width: 88%;
+        }
+    }
+
+    /*-------------help-------------*/
+    .help{
+        width: 100%;
+        text-align: right;
+        height: 48px;
+        line-height: 48px;
+	    margin-top: 12px;
+    }
+    .help img{
+        top: 5px;
+        position: relative;
+        vertical-align: unset;
+        cursor: pointer;
+    }
+    .help span{
+        font-size: 16px;
+        color: #909399;
+        margin-right: 20px;
+        cursor: pointer;
+    }
+    /*-------------logo-------------*/
+    .logo{
+        padding: 10px;
+        text-align: center;
+    }
+    .logo span{
+        font-size: 36px;
+        color: #052057;
+        border-bottom: 5px solid var(--theme_color);
+    }
+    .logo img{
+        width: 144px;
+        height: 40px;
+    }
+    /*-------------form-------------*/
+   .form-item{
+       margin-bottom: 30px;
+   }
+    .form-block{
+        padding: 10px 0px;
+    }
+    .form-block form,.form-block .form-operation{
+        margin: auto;
+    }
+    .form-block .form-operation{
+        margin-top: 10px;
+    }
+    .input-group-lg .form-control-feedback{
+        height: 46px;
+        width: 46px;
+        line-height: 46px;
+        cursor: pointer;
+        color: #888;
+    }
+    .cover{
+        display: inline-block;
+        width: 46px;
+        height: 46px;
+        position: absolute;
+        right: 0;
+        z-index: 100;
+        cursor: pointer;
+    }
+    .caret{
+        position: relative;
+        float: right;
+        top:27px;
+        right: 18px;
+        color: #888;}
+    select{
+        -webkit-appearance: none;
+        -webkit-tap-highlight-color: #fff;
+        outline: 0;
+    }
+    /*-------------link-------------*/
+    .operation-link,.operation-link:hover,.operation-link:focus,.go-back{
+        font-size: 16px;
+        color: #999999;
+    }
+    .pwd-action{
+        float: right;
+        margin-left: 10px;
+        font-size: 16px;
+        color: #999999;
+    }
+    .go-back{
+        float: right;
+    }
+    /*-------------operation-------------*/
+    .operation{
+        margin: 15px auto;
+        display: flex;
+        justify-content:space-around;
+    }
+    .operation .operation-item a{
+        font-size: 14px;
+        color: #666666;
+        cursor: pointer;
+    }
+    /*-------------operation icon-------------*/
+    .icon-base{
+        width: 22px;
+        height: 22px;
+        border-radius: 4px;
+        display: inline-block;
+    }
+    .icon-base img{
+        width: 22px;
+        height: 22px;
+    }
+    .icon-theme{
+        background-color:var(--theme_color);
+    }
+    .icon-sec-theme{
+        background-color: #052057;
+    }
+    /*-------------serveragreement-------------*/
+    .serveragreement,.serveragreement:focus,.serveragreement:hover{
+        color: #052057 !important;
+    }
+    .form-bottom{
+        margin-top: 10px;
+        font-size: 16px;
+        color: #666666;
+        height: 24px;
+    }
+    input[type="checkbox"] {
+        display: inline-block;
+        text-align: center;
+        position: relative;
+    }
+    input[type="checkbox"]::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        background: #fff;
+        width: 100%;
+        height: 100%;
+        border: 1px solid var(--theme_color);
+        border-radius: 2px;
+    }
+    input[type="checkbox"]:checked::before {
+        content: "\2713";
+        background-color: var(--theme_color);
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        border: 1px solid var(--theme_color);
+        border-radius: 1px;
+        color: #ffffff;
+        font-size: 12px;
+        font-weight: bold;
+    }
+    /*-------------tips-------------*/
+    .tips-block{
+        height: 400px;
+        display:flex;justify-content:center;align-items:center;
+    }
+    .tips{
+        width: 92%;
+    }
+    .tips .tips-title{
+        font-size: 24px;
+        color: #333333;
+        padding: 5px;
+    }
+    .tips .tips-content{
+        font-size: 18px;
+        color: #555;
+        word-wrap: break-word;
+        word-break: break-all;
+        text-align: justify;
+    }
+    .tips .tips-content li{
+        list-style: none;
+    }
+    /*-------------media-------------*/
+    .col-md-12 .form-block form,.col-md-12 .form-block .form-operation{
+        width: 60%;
+    }
+    .col-md-6 .form-block form,.col-md-6 .form-block .form-operation{
+        width: 90%;
+    }
+    .col-md-12 .operation{
+        width: 40%;
+    }
+    .col-md-6 .operation{
+        width: 75%;
+    }
+    .form-item.col-md-6{
+        border-right: 1px solid #dddddd;
+    }
+    /*-------------remember me-------------*/
+    .remember-wrap {
+        margin-bottom:4px;
+    }
+    .remember-wrap i {
+        display:block;
+        float:left;
+        margin:2px 4px 0 0;
+        width:16px;
+        height:16px;
+        border-radius:3px;
+        background:var(--theme_color);
+        border:1px solid var(--theme_color);
+        color:#fff;
+        text-align:center;
+        font-size:12px;
+        line-height:16px;
+        box-sizing:border-box;
+        cursor:pointer;
+    }
+    .remember-wrap .refuse {
+        background:none;
+        font-size:0;
+    }
+    .sms-tip{
+	    background-color: #FFF2F2;
+	    padding: 5px 10px;
+	    border: 1px solid rgb(228, 57, 60);
+	    color: #E4393C;
+	    border-radius: 5px;
+    }
+</style>
+    <script type="text/javascript">
+    $(function () {
+        isRememberMe();
+    });
+    function isRememberMe(){
+        let remember = getCookie('remember');
+        if (remember == 2) {
+            $('#loginForm #account').val(getCookie('ac'));
+            $('#loginForm #password').val(getCookie('pd'));
+            $('#loginForm #account_type').val(getCookie('act'));
+            $('#remember-me').removeClass('refuse').data('selected', 2);
+        }
+    }
+</script>
+    <script type="text/javascript">
+  $(function (){
+    var hasReload = "";
+    if(isMobile() && !hasReload){
+      $.ajax({
+        "type": "POST",
+        "url": "/gportal/Apass/portalTempPass",
+        "async":false,
+        "data":{'tdata':'+5BM8tAy1nDc7OZC7VpVcLSss5g5lesVuvWrG01Y1mqnYn+fDy+p26FFLl2oRY2nm2y8BrJBXcS7hNw7oTDGbIiEmxhkgdwwErjdNF7AZ98='},
+        "dataType":"json",
+        "success": function (c) {
+          setTimeout("hrefReload()",1000);
+        },
+        "error":function () {}
+      });
+    }
+  });
+  function hrefReload(){
+    let href = window.location.href;
+    href = changeUrlParam(href,'has_reload',1);
+    window.location.href = href;
+  }
+</script>
+        <script type="text/javascript">
+        let hasTips = '';
+        $(function () {
+            showLoginForm();
+            $(document).on("click","#show_download",function(){
+                let href = window.location.href;
+                window.location.href = changeUrlParam(href,'pagetype','index');
+            });
+
+            $(document).on("click","#help_link",function(){
+                $('#container').hide();
+                $("#help_container").show();
+            });
+
+            $(document).on("click","#help_back_btn",function(){
+                $("#help_container").hide();
+                $('#container').show();
+            });
+
+            $(document).on("click",".operation-link",function(){
+                showFormInit();
+                let blockClass = $(this).data('block');
+                $(".form-item").hide();
+                $("." + blockClass).show();
+            });
+
+            if(hasTips){
+                showTips();
+            }else{
+                hideTips();
+            }
+
+        });
+
+        function showTips() {
+            $(".form-item").removeClass('col-md-12');
+            $(".form-item").addClass('col-md-6');
+            $(".tips-block").show();
+        }
+
+        function hideTips() {
+            $(".form-item").removeClass('col-md-6');
+            $(".form-item").addClass('col-md-12');
+            $(".tips-block").hide();
+        }
+    </script>
+</head>
+<body>
+<div class="main">
+        <div class="container" id="container">
+        <div class="help">
+                    </div>
+        <div class="row">
+            <div class="form-item login-form-block col-md-12">
+                <div class="logo">
+                                        <img src="/gportal/public/static/template/1/images/logo.png">
+                                    </div>
+                <div class="form-block">
+                    <form id="loginForm">
+                        <input type="hidden" name="sign" value="e3zJgUWQpfJdpJ7Ui2a1mfQieibHnb9M+tKgIDygnSKbZNjeBOFtq9QS7vkevhU4u8koPoCKsMExWm5h1gFqHZLbCcPUsuTThSfx4BB8xZc5U00dsk8Xj77rwn5dhzmnatHBDjmTIVUtFhh3ON1ynYbQ7qMQuEvNvJIU+HmxAaK3wqkpQiHHEYErbS6SCqUTEubHDpIHQDUiWDlq9k26O/88ws1jMovRt1JHNEbF4TJFoCktZ7Kk7frJAmXkX3KbxBFHG84AYpIujDuLgfWhaQ==">
+<input type="hidden" name="sta_vlan" value="">
+<input type="hidden" name="sta_port" value="">
+<input type="hidden" name="sta_ip" value="172.30.8.159">
+<input type="hidden" name="nas_ip" value="">
+<input type="hidden" name="nas_name" value="SDZYY">
+<input type="hidden" name="last_url" value="">
+<input type="hidden" name="request_ip" value="172.30.8.159">
+<input type="hidden" name="device_mode" value="Windows NT 10.0">
+<input type="hidden" name="device_type" value="1">
+<input type="hidden" name="device_os_type" value="3">
+<input type="hidden" name="is_mobile" value="0">
+<input type="hidden" name="iv" value="6fe62a8362e99a79">
+<input type="hidden" name="login_type" value="1">
+                        <input type="hidden" name="account_type" id="account_type" value="2">
+                        <!--
+                        <div class="form-group input-group-lg">
+                            <span class="caret"></span>
+                            <select name="account_type" id="account_type" class="form-control" onchange="javascript:formValueInit();">
+                                                                <option value="2">手机号</option>
+                                                            </select>
+                        </div>
+                        -->
+                        <div class="form-group input-group-lg">
+                            <input type="text" id="account" name="user_account" class="form-control" placeholder="请输入上网账号">
+                        </div>
+                        <div class="form-group has-feedback input-group-lg">
+                            <span class="cover" onclick="javascript:isShowPassText(this)"></span>
+                            <span class="glyphicon glyphicon-eye-close form-control-feedback password-icon"></span>
+                            <input type="password" id="password" name="user_password" class="form-control password" placeholder="密码">
+                        </div>
+                                                <div class="remember-wrap">
+                            <i class="refuse" id="remember-me" data-selected="1" onclick="setRememberMe(this)">✔</i> <span style="color:#999">记住密码，请勿在公用电脑上勾选</span>
+                        </div>
+                                                <button type="button" class="btn btn-theme btn-lg btn-block" id="btn_login" onclick="javascript:login('loginForm')">登录</button>
+                    </form>
+                    <div class="form-operation">
+                                                <a class="operation-link register" data-block="register-form-block">新用户注册</a>
+                                                <a class="operation-link forget-pwd pwd-action" data-block="forget-pwd-form-block">忘记密码</a>
+                                                <a class="operation-link modify-pwd pwd-action" data-block="modify-pwd-form-block">修改密码</a>
+                                            </div>
+                </div>
+                <div class="operation">
+                                        <div class="operation-item" id="show_download">
+                        <div class="icon-base icon-sec-theme"><img src="/gportal/public/static/template/1/images/download.png"/></div>
+                        <a>客户端下载</a>
+                    </div>
+                                        <div class="operation-item">
+                        <div class="icon-base icon-sec-theme"><img src="/gportal/public/static/template/1/images/pay.png"/></div>
+                                                <a target="_blank" href="http://as.gwifi.com.cn/Gishop/index.php/pay/prevcharge?wa=SDZYY&ip=172.30.8.159">WiFi充值</a>
+                                            </div>
+                                    </div>
+            </div>
+
+            <div class="form-item register-form-block col-md-12">
+                <div class="logo">
+                                        <img src="/gportal/public/static/template/1/images/logo.png">
+                                    </div>
+                <div class="form-block">
+                    <form id="regFrom">
+                        <input type="hidden" name="sign" value="e3zJgUWQpfJdpJ7Ui2a1mfQieibHnb9M+tKgIDygnSKbZNjeBOFtq9QS7vkevhU4u8koPoCKsMExWm5h1gFqHZLbCcPUsuTThSfx4BB8xZc5U00dsk8Xj77rwn5dhzmnatHBDjmTIVUtFhh3ON1ynYbQ7qMQuEvNvJIU+HmxAaK3wqkpQiHHEYErbS6SCqUTEubHDpIHQDUiWDlq9k26O/88ws1jMovRt1JHNEbF4TJFoCktZ7Kk7frJAmXkX3KbxBFHG84AYpIujDuLgfWhaQ==">
+<input type="hidden" name="sta_vlan" value="">
+<input type="hidden" name="sta_port" value="">
+<input type="hidden" name="sta_ip" value="172.30.8.159">
+<input type="hidden" name="nas_ip" value="">
+<input type="hidden" name="nas_name" value="SDZYY">
+<input type="hidden" name="last_url" value="">
+<input type="hidden" name="request_ip" value="172.30.8.159">
+<input type="hidden" name="device_mode" value="Windows NT 10.0">
+<input type="hidden" name="device_type" value="1">
+<input type="hidden" name="device_os_type" value="3">
+<input type="hidden" name="is_mobile" value="0">
+<input type="hidden" name="iv" value="6fe62a8362e99a79">
+<input type="hidden" name="login_type" value="1">
+                        <div class="form-group input-group-lg">
+                            <input type="text" name="user_account" id="reg_account" class="form-control" placeholder="请输入手机号">
+                        </div>
+                        <div class="row">
+                            <div class="form-group input-group-lg col-md-7" style="border-right: none;">
+                                <input type="text" name="user_vcode" id="reg_vcode" class="form-control" placeholder="验证码">
+                            </div>
+                            <div class="form-group input-group-lg col-md-5">
+                                <button type="button" class="btn btn-blue btn-lg btn-block getVcode" id="reg_get_vcode" onclick="javascript:getVcode(1, 'regFrom', 'reg_get_vcode', 'reg_account');">获取验证码</button>
+                            </div>
+                        </div>
+                        <div class="form-group has-feedback input-group-lg">
+                            <span class="cover" onclick="javascript:isShowPassText(this)"></span>
+                            <span class="glyphicon glyphicon-eye-close form-control-feedback password-icon"></span>
+                            <input type="password" name="user_password" id="reg_password" class="form-control password" placeholder="密码">
+                        </div>
+                        <button type="button" class="btn btn-theme btn-lg btn-block" id="btn_register" onclick="javascript:register('regFrom')">注册</button>
+                        <div class="form-bottom">
+                            <input name="serverAgreement" type="checkbox" value="2" checked> 同意
+                            <a href="/gportal/public/static/template/public/serveragreement.html" target="_blank" class="serveragreement">用户服务协议</a>
+                            <a class="operation-link go-back" data-block="login-form-block">返回登录</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="form-item forget-pwd-form-block col-md-12">
+                <div class="logo">
+                    <span id="set_pwd_by_sms_code_tittle">忘记密码</span>
+                </div>
+                <div class="form-block">
+                    <form id="forgetPwdForm">
+                        <input type="hidden" name="sign" value="e3zJgUWQpfJdpJ7Ui2a1mfQieibHnb9M+tKgIDygnSKbZNjeBOFtq9QS7vkevhU4u8koPoCKsMExWm5h1gFqHZLbCcPUsuTThSfx4BB8xZc5U00dsk8Xj77rwn5dhzmnatHBDjmTIVUtFhh3ON1ynYbQ7qMQuEvNvJIU+HmxAaK3wqkpQiHHEYErbS6SCqUTEubHDpIHQDUiWDlq9k26O/88ws1jMovRt1JHNEbF4TJFoCktZ7Kk7frJAmXkX3KbxBFHG84AYpIujDuLgfWhaQ==">
+<input type="hidden" name="sta_vlan" value="">
+<input type="hidden" name="sta_port" value="">
+<input type="hidden" name="sta_ip" value="172.30.8.159">
+<input type="hidden" name="nas_ip" value="">
+<input type="hidden" name="nas_name" value="SDZYY">
+<input type="hidden" name="last_url" value="">
+<input type="hidden" name="request_ip" value="172.30.8.159">
+<input type="hidden" name="device_mode" value="Windows NT 10.0">
+<input type="hidden" name="device_type" value="1">
+<input type="hidden" name="device_os_type" value="3">
+<input type="hidden" name="is_mobile" value="0">
+<input type="hidden" name="iv" value="6fe62a8362e99a79">
+<input type="hidden" name="login_type" value="1">
+                        <div class="form-group input-group-lg sms-tip" style="display: none;"></div>
+                        <input type="hidden" name="account_type" value="2">
+                        <div class="form-group input-group-lg">
+                            <input type="text" name="user_account" id="forget_pwd_account" class="form-control" placeholder="手机号/绑定手机号的账号">
+                        </div>
+                        <div class="row">
+                            <div class="form-group input-group-lg col-md-7" style="border-right: none;">
+                                <input type="text" name="user_vcode" id="forget_pwd_vcode" class="form-control" placeholder="验证码">
+                            </div>
+                            <div class="form-group input-group-lg col-md-5">
+                                <button type="button" class="btn btn-blue btn-lg btn-block getVcode" id="forget_pwd_get_vcode" onclick="javascript:getVcode(2, 'forgetPwdForm', 'forget_pwd_get_vcode', 'forget_pwd_account');">获取验证码</button>
+                            </div>
+                        </div>
+                        <div class="form-group has-feedback input-group-lg">
+                            <span class="cover" onclick="javascript:isShowPassText(this)"></span>
+                            <span class="glyphicon glyphicon-eye-close form-control-feedback password-icon"></span>
+                            <input type="password" name="user_password" id="forget_pwd_password" class="form-control password" placeholder="请输入8-12位密码">
+                        </div>
+                        <button type="button" class="btn btn-theme btn-lg btn-block" id="btn_forget_pwd" onclick="javascript:forgetPwd('forgetPwdForm')">确定</button>
+                        <div class="form-bottom">
+                            <a class="operation-link go-back" data-block="login-form-block">返回登录</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="form-item modify-pwd-form-block col-md-12">
+                <div class="logo">
+                    <span id="set_pwd_by_old_tittle">修改密码</span>
+                </div>
+                <div class="form-block">
+                    <form id="modifyPwdForm">
+                        <input type="hidden" name="sign" value="e3zJgUWQpfJdpJ7Ui2a1mfQieibHnb9M+tKgIDygnSKbZNjeBOFtq9QS7vkevhU4u8koPoCKsMExWm5h1gFqHZLbCcPUsuTThSfx4BB8xZc5U00dsk8Xj77rwn5dhzmnatHBDjmTIVUtFhh3ON1ynYbQ7qMQuEvNvJIU+HmxAaK3wqkpQiHHEYErbS6SCqUTEubHDpIHQDUiWDlq9k26O/88ws1jMovRt1JHNEbF4TJFoCktZ7Kk7frJAmXkX3KbxBFHG84AYpIujDuLgfWhaQ==">
+<input type="hidden" name="sta_vlan" value="">
+<input type="hidden" name="sta_port" value="">
+<input type="hidden" name="sta_ip" value="172.30.8.159">
+<input type="hidden" name="nas_ip" value="">
+<input type="hidden" name="nas_name" value="SDZYY">
+<input type="hidden" name="last_url" value="">
+<input type="hidden" name="request_ip" value="172.30.8.159">
+<input type="hidden" name="device_mode" value="Windows NT 10.0">
+<input type="hidden" name="device_type" value="1">
+<input type="hidden" name="device_os_type" value="3">
+<input type="hidden" name="is_mobile" value="0">
+<input type="hidden" name="iv" value="6fe62a8362e99a79">
+<input type="hidden" name="login_type" value="1">
+                        <input type="hidden" name="account_type" id="pwd_account_type" value="2">
+                        <!--<div class="form-group input-group-lg">
+                            <span class="caret"></span>
+                            <select name="account_type" id="pwd_account_type" class="form-control">
+                                                                <option value="2">手机号</option>
+                                                            </select>
+                        </div>-->
+                        <div class="form-group input-group-lg">
+                            <input type="text" name="user_account" id="pwd_account" class="form-control" placeholder="请输入上网账号">
+                        </div>
+                        <div class="form-group has-feedback input-group-lg">
+                            <span class="cover" data-id="1" onclick="javascript:isShowPassText(this)"></span>
+                            <span class="icon1 glyphicon glyphicon-eye-close form-control-feedback password-icon"></span>
+                            <input type="password" name="user_password_old" class="form-control password input1" placeholder="请输入原账号密码">
+                        </div>
+                        <div class="form-group has-feedback input-group-lg">
+                            <span class="cover" data-id="2" onclick="javascript:isShowPassText(this)"></span>
+                            <span class="icon2 glyphicon glyphicon-eye-close form-control-feedback password-icon"></span>
+                            <input type="password" name="user_password_new" class="form-control password input2" placeholder="请输入新账号密码">
+                        </div>
+                        <button type="button" class="btn btn-theme btn-lg btn-block" id="btn_modify_pwd" onclick="javascript:modifyPwd('modifyPwdForm')">确定</button>
+                        <div class="form-bottom">
+                            <a class="operation-link go-back" data-block="login-form-block">返回登录</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="tips-block col-md-6">
+                <div class="tips">
+                                    </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

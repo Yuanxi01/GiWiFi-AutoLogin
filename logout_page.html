@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>下线</title>
+    <meta name="robots" content="noindex, nofollow">
+<link rel="stylesheet" href="/gportal/public/static/source/plugins/bootstrap/css/bootstrap.min.css">
+<!--<link rel="stylesheet" type="text/css" href="/gportal/public/static/source/plugins/select2/css/core.css">-->
+<script type="text/javascript" src="/gportal/public/static/source/js/jquery-3.6.0.min.js"></script>
+<script type="text/javascript" src="/gportal/public/static/source/plugins/bootstrap/js/bootstrap.min.js"></script>
+<script type="text/javascript" src="/gportal/public/static/source/plugins/artDialog/jquery.artDialog.js?skin=green"></script>
+<script type="text/javascript" src="/gportal/public/static/source/plugins/artDialog/plugins/iframeTools.js"></script>
+<script type="text/javascript" src="/gportal/public/static/source/plugins/crypto/aes.js"></script>
+<script type="text/javascript" src="/gportal/public/static/source/plugins/crypto/pad-zeropadding-min.js"></script>
+<!--
+<script type="text/javascript" src="/gportal/public/static/source/plugins/select2/select2.min.js"></script>-->
+
+    <script type="text/javascript">
+    //加密请求参数
+    function cryptoEncode(data,iv){
+        var key = CryptoJS.enc.Utf8.parse("1234567887654321");
+        var ivv = CryptoJS.enc.Utf8.parse(iv);
+        var encrypted = CryptoJS.AES.encrypt(data, key, { iv: ivv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.ZeroPadding });
+        data = encrypted.toString();
+        var msg = {'data':data,'iv':iv};
+        return msg;
+    }
+</script>
+<script type="text/javascript">
+    var regPhone = /^0?1[3|4|5|6|7|8|9][0-9]\d{8}$/;
+    //var regPw = /^(?=.*[a-zA-Z])(?=.*\d)[^]{8,12}$/;
+    //var regPw = /^(?=.*\d)(?=.*[a-zA-Z])[a-zA-Z0-9]{8,12}$/;
+    var regPw = /^(?=.*\d)(?=.*[a-zA-Z])[a-zA-Z0-9@_&!]{8,12}$/;
+    var reg = /^0?1[3|4|5|6|7|8|9][0-9]\d{8}$|^[a-zA-Z0-9_]{6,16}$/;
+    var browser=navigator.appName;
+    var b_version=navigator.appVersion;
+    var iPhone = b_version.indexOf('iPhone') > -1; //是否为iPhone或者QQHD浏览器
+    var iPad = b_version.indexOf('iPad') > -1; //是否iPad
+    var isiOS = !!b_version.match(/\(i[^;]+;( U;)? CPU.+Mac OS X/); //ios终端
+    var isMac = b_version.indexOf('Macintosh') > -1; //ios终端
+    var isWinPC = b_version.indexOf('Windows') > -1;
+    var isAndroid = b_version.indexOf('Android') > -1 || b_version.indexOf('Linux') > -1; //android终端
+    var isMiuiBrowser = b_version.indexOf('Build/SKG1') > -1 || b_version.indexOf('Build/SKQ1') > -1 || b_version.indexOf('Build/UKQ1') > -1;
+    /**
+     * @access public
+     * @author gbcom
+     * @deprecated 使用ajax操作的数据返回的结果提示
+     * @param info		提示信息
+     * @param second	弹出框显示多少秒关闭
+     * @param result	返回结果 成功("succeed") OR 失败("error")
+     * @param url		弹出框关闭后执行的操作
+     * @param lockMenu		是否锁屏 false OR true啊
+     * @since 2015年7月14日
+     */
+    function showmessage(info, second, result, url, lockMenu){
+        // 默认值
+        if (result == undefined){
+            result = 'succeed';
+        }
+        if (url == undefined){
+            url = null;
+        }
+        if (lockMenu == undefined){
+            lockMenu = true;
+        }
+        if (second != undefined){
+            if (window.top.art.dialog.list['beforeSendId']){
+                window.top.art.dialog({id:'beforeSendId'}).close();
+            }
+            window.top.art.dialog({
+                id: 'msgId',
+                content: info,
+                width:'auto',
+                icon: result,
+                lock: lockMenu,
+                fixed: true,
+                zIndex: 65536,
+                init: function () {
+                    var that = this, i = second;
+                    var fn = function () {
+                        that.title(i + '秒后关闭');
+                        !i && that.close();
+                        i --;
+                    };
+                    timer = setInterval(fn, 1000);
+                    fn();
+                },
+                close: function () {
+                    clearInterval(timer);
+                    if(url != null){
+                        window.location.href = url;
+                    }
+                }
+            }).show();
+        }else{
+            if (window.top.art.dialog.list['beforeSendId']){
+                window.top.art.dialog({id:'beforeSendId'}).close();
+            }
+            art.dialog.alert(info);
+        }
+    }
+
+    function isEmpty(val) {
+        if(val == null || val == undefined || val == ''){
+            return true;
+        }else{
+            return false;
+        }
+    }
+
+    function resultSuccess(message,data){
+        let returnData = {
+            code:true,
+			message:message,
+	        data:data
+        }
+        return returnData;
+    }
+
+    function resultError(message,data){
+        let returnData = {
+            code:false,
+            message:message,
+            data:data
+        }
+        return returnData;
+    }
+
+    function checkResult(returnData){
+        return returnData.code;
+    }
+
+    function getResultInfo(returnData){
+        return returnData.message;
+    }
+
+    function getResultData(returnData){
+	    return returnData.data;
+    }
+
+    function setUrlParam(url,arg,arg_val){
+	    var pattern=arg+'=([^&]*)';
+	    var replaceText=arg+'='+arg_val;
+	    if(url.match(pattern)){
+		    var tmp='/('+ arg+'=)([^&]*)/gi';
+		    tmp=url.replace(eval(tmp),replaceText);
+		    return tmp;
+	    }else{
+		    if(url.match('[\?]')){
+			    return url+'&'+replaceText;
+		    }else{
+			    return url+'?'+replaceText;
+		    }
+	    }
+	    return url+'\n'+arg+'\n'+arg_val;
+    }
+</script>
+<script type="text/javascript">
+    function getMaxtouchPoints() {
+        let maxTouchPoints = 0;
+        if (typeof navigator.maxTouchPoints !== 'undefined') {
+            maxTouchPoints = navigator.maxTouchPoints
+        } else if (typeof navigator.msMaxTouchPoints !== 'undefined') {
+            maxTouchPoints = navigator.msMaxTouchPoints
+        }
+        return maxTouchPoints;
+    }
+
+    function isMobile() {
+        var u = navigator.userAgent, app = navigator.appVersion;
+        var isWindows = app.indexOf('Windows') > -1;
+        var isMac = app.indexOf('Macintosh') > -1;
+        var isAndroid = u.indexOf('Android') > -1 || u.indexOf('Linux') > -1;
+        var isIOS = !!u.match(/\(i[^;]+;( U;)? CPU.+Mac OS X/);
+        if (isAndroid || isIOS) {
+            return true;
+        }
+        if (isMac) {
+            if (getMaxtouchPoints()>0){
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function reloadMobile() {
+        let href = window.location.href;
+        if (isMobile()) {
+	        window.location.href = setUrlParam(href,'is_mobile',1);
+        }
+        return "";
+    }
+</script>
+
+<script type="text/javascript">
+    //index->login页面
+    function redirectToLogin(loginType){
+        let href = window.location.href;
+        href = changeUrlParam(href,'pagetype','login');
+        href = changeUrlParam(href,'logintype',loginType);
+        window.location.href = href;
+    }
+
+    function changeUrlParam(url,arg,arg_val){
+        var pattern=arg+'=([^&]*)';
+        var replaceText=arg+'='+arg_val;
+        if(url.match(pattern)){
+            var tmp='/('+ arg+'=)([^&]*)/gi';
+            tmp=url.replace(eval(tmp),replaceText);
+            return tmp;
+        }else{
+            if(url.match('[\?]')){
+                return url+'&'+replaceText;
+            }else{
+                return url+'?'+replaceText;
+            }
+        }
+        return url+'\n'+arg+'\n'+arg_val;
+    }
+
+    let countDownObj = null;
+    let count = 60;
+
+    function countDown(buttonId) {
+        $("#"+buttonId).text(count + 's');
+        if(count < 0){
+            count = 60;
+            clearInterval(countDownObj);
+            $("#"+buttonId).text('获取验证码');
+            $('.btn').removeAttr("disabled");
+	        hideSmsTip();
+        }
+        count--;
+    }
+
+    function hideSmsTip(){
+	    $(".sms-tip").text('');
+	    $(".sms-tip").hide();
+    }
+
+    function initCountDown() {
+        if(countDownObj != null){
+            clearInterval(countDownObj);
+        }
+        count = 60;
+        $(".getVcode").text('获取验证码');
+        $('.btn').removeAttr("disabled");
+	    hideSmsTip();
+    }
+
+    function showPassword(id) {
+        if(id != undefined && id != '' && id != null){
+            $(".icon" + id).removeClass('glyphicon-eye-close');
+            $(".icon" + id).addClass('glyphicon-eye-open');
+            $(".input" + id).attr('type','text');
+        }else{
+            $(".password-icon").removeClass('glyphicon-eye-close');
+            $(".password-icon").addClass('glyphicon-eye-open');
+            $(".password").attr('type','text');
+        }
+    }
+
+    function hidePassword(id) {
+        if(id != undefined && id != '' && id != null){
+            $(".icon" + id).removeClass('glyphicon-eye-open');
+            $(".icon" + id).addClass('glyphicon-eye-close');
+            $(".input" + id).attr('type','password');
+        }else{
+            $(".password-icon").removeClass('glyphicon-eye-open');
+            $(".password-icon").addClass('glyphicon-eye-close');
+            $(".password").attr('type','password');
+        }
+    }
+
+    function timeKeeper(start){
+        if(start != ""){
+            var nowDate=new Date();
+            var now = parseInt(nowDate.getTime()/1000);
+            var duration = now - start;
+            var h = parseInt(duration/3600);
+            var m = parseInt((duration-h*3600)/60);
+            var s = (duration - h*3600 - m*60);
+            h = h.toString();
+            m = m.toString();
+            s = s.toString();
+            if(h.length<2){
+                h = "0"+h;
+            }
+            if(m.length<2){
+                m = "0"+m;
+            }
+            if(s.length<2){
+                s = "0"+s;
+            }
+            $("#online_duration .h").html(h);
+            $("#online_duration .m").html(m);
+            $("#online_duration .s").html(s);
+        }
+    }
+
+    /**
+     * 获取验证码
+    * */
+    function getVcode(action,formId,buttonId,accountId) {
+        let account = $("#"+accountId).val();
+        if(!account){
+            showmessage("账号不能为空!", 4,'warning');
+            return false;
+        }
+        if (!regPhone.test(account)) {
+            //showmessage("手机号码格式无效!", 4,'warning');
+            //return false;
+        }
+        var form = "#" + formId;
+        if($(form + " input[name=serverAgreement]").length > 0){
+            var agreement =  $(form + " input[name=serverAgreement]").is(':checked');
+            if (!agreement) {
+                showmessage("请同意并勾选用户服务协议。", 4,'warning');
+                return false;
+            }
+        }
+        var btn = "#"+buttonId;
+        $(btn).attr('disabled', 'disabled');
+        var iv =  $("#"+ formId +" input[name=iv]").val();
+        var accountType = $('#account_type').val();
+        var formData = cryptoEncode($("#" + formId).serialize()+'&action_type='+action+'&account_type='+accountType,iv);
+        $.ajax({
+            url:"/gportal/Web/getVcode",
+            data : formData,
+            type : "post",
+            async : false,
+            dataType : "json",
+            success : function(data) {
+                if (data.status == 1) {
+                    $(btn).text('正在发送...');
+	                $(".sms-tip").text(data.info);
+	                $(".sms-tip").show();
+                	countDownObj = setInterval(countDown,1000,buttonId);
+                } else {
+                    $(btn).text('获取验证码');
+                	showmessage(data.info, 4,'error');
+                	setTimeout(function(buttonId){$("#"+buttonId).removeAttr('disabled');},3000,buttonId);
+                	return false;
+                }
+                return false;
+            },error:function(jqXHR,textStatus,errorThrown){
+                setTimeout(function(buttonId){$("#"+buttonId).removeAttr('disabled');},3000,buttonId);
+                return false;
+            }
+        });
+    }
+    
+    function login(formId) {
+        var form = "#" + formId;
+        var account = $(form + " input[name=user_account]" ).val();
+        var password = $(form + " input[name=user_password]" ).val();
+        var accountType = $(form + " select[name=account_type]" ).val();
+        if(!account){
+            showmessage("账号不能为空!", 4,'warning');
+            return false;
+        }
+        if(!password){
+            showmessage("密码不能为空!", 4,'warning');
+            return false;
+        }
+        if(accountType == "2"){
+            if (!regPhone.test(account)) {
+                //showmessage("手机号码格式无效!", 4,'warning');
+                //return false;
+            }
+        }
+        if($(form + " input[name=serverAgreement]").length > 0){
+            var agreement =  $(form + " input[name=serverAgreement]").is(':checked');
+            if (!agreement) {
+                showmessage("请同意并勾选用户服务协议。", 4,'warning');
+                return false;
+            }
+        }
+        var btn = $(".btn");
+        btn.attr('disabled', 'disabled');
+        var iv =  $(form + " input[name=iv]").val();
+        var formData = cryptoEncode($(form).serialize(),iv);
+
+        if ($('#remember-me').data('selected') == 2) {
+            rememberMe(account, accountType, password);
+        } else {
+            forgetMe();
+        }
+        $.ajax({
+            url:"/gportal/Web/loginAction",
+            data : formData,
+            type : "post",
+            async : false,
+            dataType : "json",
+            success : function(data) {
+                btn.removeAttr('disabled');
+                if (data.status == 0) {
+                    //失败
+                    if(data.data.hasOwnProperty('resultCode')){
+                        if(data.data.resultCode == '40'){
+                            window.location.href = data.data['resultData'];
+                        }else if(data.data.resultCode == '124'){
+                            window.top.art.dialog.confirm(data.info, function() {
+                                $.post(data.data['resultData'],{},function () {});
+                            }, function() {
+                                window.top.art.dialog({id:"Confirm"}).close();
+                                return false;
+                            });
+                        }else if(data.data.resultCode == '114' && accountType == '2'){
+                            window.top.art.dialog.confirm(data.info, function() {
+                                showSetPwd(account);
+                            }, function() {
+                                window.top.art.dialog({id:"Confirm"}).close();
+                                return false;
+                            });
+                        }else if(data.data.resultCode == '152'){
+                            window.top.art.dialog.confirm(data.info, function() {
+                                showChangePwd(account,accountType);
+                            }, function() {
+                                window.top.art.dialog({id:"Confirm"}).close();
+                                return false;
+                            });
+                        } else{
+                            showmessage(data.info, 4, 'error');
+                        }
+                    }else{
+                        showmessage(data.info, 4, 'error');
+                    }
+                } else {
+                    showmessage(data.info, 4, 'succeed',data.data);
+                }
+                return false;
+            },error:function(jqXHR,textStatus,errorThrown){
+                btn.removeAttr('disabled');
+                //closeWait();
+                //showmessage("网络出错,请联系客服", 4, "http://1.2.3.4");
+                return false;
+            },beforeSend:function(){
+                //showWait();
+            }
+        });
+
+    }
+    
+    function showSetPwd(account) {
+        $(".form-item").hide();
+        $("#set_pwd_by_sms_code_tittle").text('设置密码');
+        $("#forgetPwdForm input[name=user_account]" ).val(account);
+        $(".forget-pwd-form-block").show();
+    }
+
+    function showChangePwd(account,accountType) {
+        $(".form-item").hide();
+        $("#set_pwd_by_old_tittle").text('修改密码');
+        $("#modifyPwdForm input[name=user_account]" ).val(account);
+        $("#modifyPwdForm select[name=account_type]" ).val(accountType);
+        $(".modify-pwd-form-block").show();
+    }
+
+    function showFormInit() {
+        $("#set_pwd_by_sms_code_tittle").text('忘记密码');
+        $("#set_pwd_by_old_tittle").text('修改密码');
+        $("input[name=user_account]" ).val($("#loginForm input[name=user_account]" ).val());
+        $("#modifyPwdForm select[name=account_type]" ).val($("#loginForm select[name=account_type]" ).val());
+        hidePassword();
+        initCountDown();
+    }
+
+    function formValueInit(){
+        $("input[name=user_account]" ).val('');
+        $("input[name=user_password]" ).val('');
+        $("input[name=user_password_old]" ).val('');
+        $("input[name=user_password_new]" ).val('');
+    }
+
+    function register(formId) {
+        var form = "#" + formId;
+        var account = $(form + " input[name=user_account]" ).val();
+        var vcode = $(form + " input[name=user_vcode]" ).val();
+        var password = $(form + " input[name=user_password]" ).val();
+        var btn = $('.btn');
+        if(!account){
+            showmessage("账号不能为空!", 4,'warning');
+            return false;
+        }
+        if (!regPhone.test(account)) {
+            showmessage("手机号码格式无效!", 4,'warning');
+            return false;
+        }
+        if(!vcode){
+            showmessage("验证码不能为空!", 4,'warning');
+            return false;
+        }
+        if(!password){
+            showmessage("密码不能为空!", 4,'warning');
+            return false;
+        }
+        if(password.length < 8 || password.length  > 12){
+            showmessage("密码长度在8-12位之间!", 4,'warning');
+            return false;
+        }
+        if(!regPw.test(password) ) {
+            showmessage("密码需包含数字和字母,支持特殊字符@_&!", 4,'warning');
+            return false;
+        }
+        if($(form + " input[name=serverAgreement]").length > 0){
+            var agreement =  $(form + " input[name=serverAgreement]").is(':checked');
+            if (!agreement) {
+                showmessage("请同意并勾选用户服务协议。", 4,'warning');
+                return false;
+            }
+        }
+        btn.attr('disabled', 'disabled');
+        var iv =  $(form + " input[name=iv]").val();
+        var formData = cryptoEncode($(form).serialize(),iv);
+        $.ajax({
+            url : "/gportal/Web/register",
+            data : formData,
+            type : "post",
+            async : false,
+            dataType : "json",
+            success : function(data) {
+                btn.removeAttr('disabled');
+                if (data.status == 1) {
+                    showmessage(data.info, 4, 'succeed',window.location.href);
+                } else {
+                    showmessage(data.info, 4, 'error');
+                }
+                return false;
+            },error:function(jqXHR,textStatus,errorThrown){
+                btn.removeAttr('disabled');
+                //closeWait();
+                //showmessage("网络出错,请联系客服", 4, "http://1.2.3.4");
+                return false;
+            },beforeSend:function(){
+                //showWait();
+            }
+        });
+    }
+
+    //修改密码
+    function modifyPwd(formId) {
+        var form = "#" + formId;
+        var account = $(form + " input[name=user_account]" ).val();
+        var pwdOld = $(form + " input[name=user_password_old]" ).val();
+        var pwdNew = $(form + " input[name=user_password_new]" ).val();
+        var btn = $('.btn');
+        if(!account){
+            showmessage("账号不能为空!", 4,'warning');
+            return false;
+        }
+        if(!pwdOld){
+            showmessage("请输入旧密码!", 4,'warning');
+            return false;
+        }
+        if(!pwdNew){
+            showmessage("请输入新密码!", 4,'warning');
+            return false;
+        }
+        if(pwdNew.length < 8 || pwdNew.length  > 12){
+            showmessage("新密码长度在8-12位之间！", 4,'warning');
+            return false;
+        }
+        if(!regPw.test(pwdNew) ) {
+            showmessage("新密码必须包含数字和字母,支持特殊字符@_&!", 4,'warning');
+            return false;
+        }
+        btn.attr('disabled', 'disabled');
+        var iv =  $(form + " input[name=iv]").val();
+        var formData = cryptoEncode($(form).serialize(),iv);
+        $.ajax({
+            url : "/gportal/Web/modifyPwd",
+            data : formData,
+            type : "post",
+            async : false,
+            dataType : "json",
+            success : function(data) {
+                btn.removeAttr('disabled');
+                if (data.status == 1) {
+                    showmessage(data.info, 4, 'succeed');
+                    setTimeout("window.location.reload()",4000);
+                } else {
+                    showmessage(data.info, 4, 'error');
+                }
+                return false;
+            },error:function(jqXHR,textStatus,errorThrown){
+                btn.removeAttr('disabled');
+                //closeWait();
+                //showmessage("网络出错,请联系客服", 4, "http://1.2.3.4");
+                return false;
+            },beforeSend:function(){
+                //showWait();
+            }
+        });
+    }
+
+    //忘记密码
+    function forgetPwd(formId) {
+        var form = "#" + formId;
+        var account = $(form + " input[name=user_account]" ).val();
+        var vcode = $(form + " input[name=user_vcode]" ).val();
+        var password = $(form + " input[name=user_password]" ).val();
+        var btn = $('.btn');
+        if(!account){
+            showmessage("账号不能为空!", 4,'warning');
+            return false;
+        }
+        if (!regPhone.test(account)) {
+            //showmessage("手机号码格式无效!", 4,'warning');
+           //return false;
+        }
+        if(!vcode){
+            showmessage("验证码不能为空!", 4,'warning');
+            return false;
+        }
+        if(!password){
+            showmessage("新密码不能为空!", 4,'warning');
+            return false;
+        }
+        if(password.length < 8 || password.length  > 12){
+            showmessage("新密码长度在8-12位之间!", 4,'warning');
+            return false;
+        }
+        if(!regPw.test(password) ) {
+            showmessage("新密码必须包含数字和字母,支持特殊字符@_&!", 4,'warning');
+            return false;
+        }
+        btn.attr('disabled', 'disabled');
+        var iv =  $(form + " input[name=iv]").val();
+        var formData = cryptoEncode($(form).serialize(),iv);
+        $.ajax({
+            url : "/gportal/Web/resetPwd",
+            data : formData,
+            type : "post",
+            async : false,
+            dataType : "json",
+            success : function(data) {
+                btn.removeAttr('disabled');
+                if (data.status == 1) {
+                    showmessage(data.info, 4, 'succeed');
+                    setTimeout("window.location.reload()",4000);
+                } else {
+                    showmessage(data.info, 4, 'error');
+                }
+                return false;
+            },error:function(jqXHR,textStatus,errorThrown){
+                btn.removeAttr('disabled');
+                //closeWait();
+                //showmessage("网络出错,请联系客服", 4, "http://1.2.3.4");
+                return false;
+            },beforeSend:function(){
+                //showWait();
+            }
+        });
+    }
+
+    function downloadApp(elementId) {
+        let downloadHref = "/gportal/public/static/html/app/getApp.htm?os=";
+        if(isAndroid){
+            $('#'+elementId).attr('href',downloadHref + 'android');
+        }else {
+        	$.ajax({
+                "type": "POST",
+                "url": "/gportal/Apass/appdownload",
+                "async":false,
+                "data":{'tdata':'', 'url':downloadHref},
+                "dataType":"json",
+                "success": function (c) {
+                    $('#'+elementId).attr('href',downloadHref + 'ios');
+                },
+                "error":function () {
+                	$('#'+elementId).attr('href',downloadHref + 'ios');
+                }
+            });
+           
+        }
+    }
+
+    function getCookie(key) {
+        var name = key + "=";
+        var decodedCookie = decodeURIComponent(document.cookie);
+        var ca = decodedCookie.split(';');
+        for(var i = 0; i <ca.length; i++) {
+            var c = ca[i];
+            while (c.charAt(0) == ' ') {
+                c = c.substring(1);
+            }
+            if (c.indexOf(name) == 0) {
+                return c.substring(name.length, c.length);
+            }
+        }
+        return "";
+    }
+
+    function setCookie(key, value) {
+        let keepDays = "7";
+        let d = new Date();
+		d.setTime(d.getTime() + Number(keepDays) * 86400000);
+		document.cookie = key + '=' + value + ';expires=' + d.toUTCString();
+    }
+
+    function rememberMe(ac, act, pd) {
+        setCookie('remember', 2);
+        setCookie('ac', ac);
+        setCookie('act', act);
+        setCookie('pd', pd);
+    }
+
+    function forgetMe() { 
+        setCookie('remember', '');
+        setCookie('ac', '');
+        setCookie('pd', '');
+        setCookie('act', '');
+    }
+
+    function isShowPassText(obj){
+        let id = $(obj).data('id');
+        let showPass = $(".password-icon").hasClass('glyphicon-eye-open');
+        if(id != undefined && id != '' && id != null){
+            showPass = $(".icon" + id).hasClass('glyphicon-eye-open');
+        }
+        if(showPass){
+            hidePassword(id);
+        }else{
+            showPassword(id);
+        }
+    }
+
+    function setRememberMe(obj){
+        let val = $(obj).data('selected');
+        if (val == 2) {
+            $(obj).addClass('refuse').data('selected', 1);
+        } else {
+            $(obj).removeClass('refuse').data('selected', 2);
+        }
+    }
+
+    function showLoginForm(){
+        $(".form-item").hide();
+        $(".login-form-block").show();
+    }
+
+    function offline(obj,formId){
+        $(obj).attr('disabled',true);
+        $.ajax({
+            "type": "POST",
+            "url": "/gportal/Web/logoutAction",
+            "async":false,
+            "data":$("#" + formId).serialize(),
+            "success": function (c) {
+                $(obj).attr('disabled',false);
+                if(c.status == 1){
+                    showmessage(c.info,4,'succeed','http://1.2.3.4');
+                }else{
+                    if(c.data = '133'){
+                        showmessage(c.info,4,'error','http://1.2.3.4');
+                    }else{
+                        showmessage(c.info,4,'error',null);
+                    }
+                }
+            },
+            "error":function () {
+                $(obj).attr('disabled',false);
+            }
+        });
+    }
+</script>
+
+    <style type="text/css">
+    :root {
+    --theme_color: #FFDA0F;
+    --theme_font_color: #052057;
+    --theme_sec_color: #052057;
+    }
+</style>
+<style type="text/css">
+    body{background-image: url("/gportal/public/static/template/2/images/background.jpg");}
+</style>
+<style type="text/css">
+    html,body{margin: 0px;width: 100%;height: 100%;}
+    body{background-repeat:no-repeat ;background-size:100% 100%;background-attachment: fixed;display:flex;justify-content:center;align-items:center;}
+    .row{margin: 40px auto;}
+    .content{width: 800px;background: #ffffff;border-radius: 8px;}
+    .logo{text-align: center;margin-top: 20px;}
+    .logo span{font-size: 36px;color: #052057;border-bottom: 5px solid var(--theme_color);}
+    .btn-theme{background: var(--theme_color);color: var(--theme_font_color);}
+    .btn-blue,.btn-blue:hover{background: #052057 !important;color: #ffffff !important;}
+    a:hover{text-decoration: none !important;cursor: pointer;}
+    .operation-link{font-size: 16px;color: #999999;}
+    .operation{margin: 40px auto;display: flex;justify-content:space-around;width: 65%;}
+    .operation .operation-item{display: flex;align-items: center;}
+    .operation .operation-item img,.operation .operation-item .icon-base{width: 22px;height: 22px;border-radius: 3px;}
+    .background-sec-theme{background-color: var(--theme_sec_color);}
+    .background-blue{background-color: #052057;}
+    .operation .operation-item a{font-size: 14px;color: #666666;cursor: pointer;margin-left: 3px;}
+    .online-duration{display: flex;flex-direction: row;justify-content: center;margin: 40px auto 5px;}
+    .online-duration .h,.online-duration .m,.online-duration .s{height: 80px;width: 80px;border-radius: 8px;font-size: 40px;line-height: 80px;text-align: center;background: #F2F2F2;}
+    .online-duration .colon{height: 80px;width: 20px;border-radius: 8px;font-size: 40px;line-height: 80px;text-align: center;}
+    .btn-logout{width: 60%;margin:40px auto;}
+    .btn-logout button{width:100%; height:48px; background:var(--theme_color); border:none; color:var(--theme_font_color); outline:none;font-size:20px; line-height:48px; border-radius:4px;}
+    .disabled{background-color: #DDDDDD !important;}
+    .msg {position:fixed; width:100%; height:100%; top:0; left:0; background:rgba(0,0,0,.1); z-index:999; display:none;}
+    .msg p {position:absolute; left:50%; top:50%; background:rgba(0,0,0,.7); color:#fff; font-size:16px; border-radius:4px; padding:8px 10px; transform:translateX(-50%,-100%); -webkit-transform:translate(-50%,-100%); text-align:center; max-width:80%;}
+    /*-------------tips-------------*/
+    .tips-block{height: 400px;display:flex;justify-content:center;align-items:center;}
+    .tips{width: 92%;}
+    .tips .tips-title{font-size: 24px;color: #333333;padding: 5px;}
+    .tips .tips-content{font-size: 18px;color: #555;word-wrap: break-word;word-break: break-all;text-align: justify;}
+    .tips .tips-content li{list-style: none;}
+    .col-md-6{margin-right: 0px;}
+    .duration-block.col-md-6{border-right: 1px solid #cccccc}
+    .logout-msg{
+	    text-align: center;
+        color: #E4393C;
+    }
+</style>
+    <script type="text/javascript">
+	$(function (){
+		let timestamp = parseInt('1779944288');
+		let nowDate=new Date();
+		let now = parseInt(nowDate.getTime()/1000);
+		let tip = "";
+		if(!isEmpty(tip)){
+			showmessage(tip,3,'warning',null);
+		}
+		let completeUrl = "";
+		let complete = "";
+		console.log(complete);
+		if(!isEmpty(completeUrl) && (now - timestamp) < 300 && complete != 'hide'){
+			window.top.art.dialog.confirm("请完善您的个人信息!", function () {
+				window.location.href = completeUrl;
+				showmessage('页面跳转中，请稍后...',4,null);
+			},function(){
+				window.location.href = changeUrlParam(window.location.href,'complete','hide');
+				return;
+			});
+		}
+	});
+</script>
+        <script type="text/javascript">
+        $(function(){
+            let hasTips = '';
+            let timestamp = $("#online_duration").data("timestamp");
+            if(hasTips){
+                showTips();
+            }else{
+                hideTips();
+            }
+            setInterval(function(){timeKeeper(timestamp)},1000);
+        });
+
+        function showTips() {
+            $(".duration-block").removeClass('col-md-12');
+            $(".duration-block").addClass('col-md-6');
+            $(".tips-block").show();
+            $(".tips-block").css('height',$(".duration-block").css('height'));
+        }
+
+        function hideTips() {
+            $(".duration-block").removeClass('col-md-6');
+            $(".duration-block").addClass('col-md-12');
+            $(".tips-block").hide();
+        }
+    </script>
+</head>
+<body>
+<div class="content">
+    <div class="row">
+        <div class="duration-block col-md-12">
+            <div class="logo">
+                <span>在线时长</span>
+            </div>
+            <form id="formData" class="form-horizontal" role="form">
+                <input type="hidden" name="si" value="gbcom_ac1bfde5177994420006a42d">
+                <div class="online-duration" id="online_duration" data-timestamp="1779944288">
+                    <div class="h">00</div>
+                    <div class="colon">:</div>
+                    <div class="m">00</div>
+                    <div class="colon">:</div>
+                    <div class="s">00</div>
+                </div>
+                                <div class="btn-logout">
+                    <button type="button" onclick="javascript:offline(this,'formData');">下线</button>
+                </div>
+            </form>
+            <div class="operation">
+                                <div class="operation-item">
+                    <div class="icon-base background-blue">
+                        <img src="/gportal/public/static/template/2/images/pay.png">
+                    </div>
+                    <a href="http://as.gwifi.com.cn/Gishop/index.php/buy/index?data=FtQ%2BHePpPe%2BFJV5dH%2FWK5SUsaIEDaNaP%2BWZ2rGRh3A364YuS9zskIyIj4pks48WmWJpI5GKDG1119PMtp63OiB34XXy6yYshZ7meX8O%2B1h6wttGtICs8WRZTQsCGT4HF" target="_blank">WiFi充值</a>
+                </div>
+                            </div>
+        </div>
+            </div>
+</div>
+</body>
+</html>
