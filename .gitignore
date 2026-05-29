@@ -14,9 +14,8 @@ venv.bak/
 build/
 *.spec
 
-# Dist - only keep exe, exclude logs and config
-dist/*.log
-dist/*.json
+# Dist
+dist/
 
 # IDE
 .vscode/
