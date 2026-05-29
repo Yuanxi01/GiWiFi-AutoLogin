@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QWidget" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>400</width>
+    <height>350</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>GiWiFi自动登录软件</string>
+  </property>
+  <layout class="QVBoxLayout" name="mainLayout">
+   <property name="spacing">
+    <number>10</number>
+   </property>
+   <property name="leftMargin">
+    <number>12</number>
+   </property>
+   <property name="topMargin">
+    <number>12</number>
+   </property>
+   <property name="rightMargin">
+    <number>12</number>
+   </property>
+   <property name="bottomMargin">
+    <number>12</number>
+   </property>
+   <!-- 网络状态 -->
+   <item>
+    <widget class="QGroupBox" name="status_group">
+     <property name="title">
+      <string>网络状态</string>
+     </property>
+     <layout class="QVBoxLayout" name="statusLayout">
+      <item>
+       <widget class="QLabel" name="status_label">
+        <property name="text">
+         <string>检测中...</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignCenter</set>
+        </property>
+        <property name="font">
+         <font>
+          <pointsize>12</pointsize>
+         </font>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="duration_label">
+        <property name="text">
+         <string/>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignCenter</set>
+        </property>
+        <property name="styleSheet">
+         <string>color: #666;</string>
+        </property>
+        <property name="font">
+         <font>
+          <pointsize>10</pointsize>
+         </font>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <!-- 登录信息 -->
+   <item>
+    <widget class="QGroupBox" name="cred_group">
+     <property name="title">
+      <string>登录信息</string>
+     </property>
+     <layout class="QVBoxLayout" name="credLayout">
+      <item>
+       <layout class="QHBoxLayout" name="user_layout">
+        <item>
+         <widget class="QLabel" name="user_label">
+          <property name="text">
+           <string>账号:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="username_input">
+          <property name="placeholderText">
+           <string>请输入校园网账号</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="pass_layout">
+        <item>
+         <widget class="QLabel" name="pass_label">
+          <property name="text">
+           <string>密码:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="password_input">
+          <property name="placeholderText">
+           <string>请输入密码</string>
+          </property>
+          <property name="echoMode">
+           <enum>QLineEdit::Password</enum>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <!-- 按钮 -->
+   <item>
+    <layout class="QHBoxLayout" name="btn_layout">
+     <item>
+      <widget class="QPushButton" name="save_btn">
+       <property name="text">
+        <string>保存配置</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="login_btn">
+       <property name="text">
+        <string>手动登录</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="logout_btn">
+       <property name="text">
+        <string>下线</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <!-- 复选框 -->
+   <item>
+    <layout class="QHBoxLayout" name="cb_layout">
+     <item>
+      <widget class="QCheckBox" name="autostart_cb">
+       <property name="text">
+        <string>开机自启动</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QCheckBox" name="auto_reconnect_cb">
+       <property name="text">
+        <string>掉线自动登录</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <!-- 版本信息 -->
+   <item>
+    <widget class="QLabel" name="version_label">
+     <property name="text">
+      <string>v1.0.1  |  YuanXi</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignRight|Qt::AlignVCenter</set>
+     </property>
+     <property name="styleSheet">
+      <string>color: #aaa; font-size: 10px;</string>
+     </property>
+    </widget>
+   </item>
+   <!-- 日志 -->
+   <item>
+    <widget class="QLabel" name="log_label">
+     <property name="text">
+      <string/>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+     <property name="styleSheet">
+      <string>color: gray; font-size: 11px;</string>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

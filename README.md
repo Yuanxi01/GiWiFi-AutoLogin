@@ -32,3 +32,4 @@ pyinstaller --onefile --windowed --name GiWiFi main.py
 
 ## 开发日志
 - 2025-05-27：完成基础功能，GUI + 自动检测 + 登录 + 托盘 + 自启动，已打包 exe
+- **待验证：** 用户尚未在校园网环境实测登录是否成功，如失败需抓包确认 POST 参数格式

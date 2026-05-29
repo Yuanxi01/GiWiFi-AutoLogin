@@ -1,12 +1,12 @@
 import time
-from PyQt5.QtCore import QThread, pyqtSignal
+from PySide6.QtCore import QThread, Signal
 
 from login_worker import check_online
 
 
 class NetworkChecker(QThread):
-    status_changed = pyqtSignal(bool)
-    login_needed = pyqtSignal(str)
+    status_changed = Signal(bool)
+    login_needed = Signal(str)
 
     def __init__(self, interval: int = 30):
         super().__init__()
