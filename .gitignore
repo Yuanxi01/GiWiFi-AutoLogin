@@ -12,8 +12,11 @@ venv.bak/
 
 # PyInstaller
 build/
-dist/
 *.spec
+
+# Dist - only keep exe, exclude logs and config
+dist/*.log
+dist/*.json
 
 # IDE
 .vscode/
