@@ -15,10 +15,10 @@ _session = requests.Session()
 _session.headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 
 
-def check_online() -> tuple[bool, str | None]:
+def check_online(timeout: int = 5) -> tuple[bool, str | None]:
     """检测网络是否连通，返回 (是否在线, portal重定向URL)"""
     try:
-        resp = requests.get("http://www.baidu.com", timeout=5, allow_redirects=False)
+        resp = requests.get("http://www.baidu.com", timeout=timeout, allow_redirects=False)
         log(f"检测网络: HTTP {resp.status_code}")
         if resp.status_code == 200:
             return True, None

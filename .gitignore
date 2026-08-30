@@ -29,3 +29,12 @@ Thumbs.db
 
 # Config with potential sensitive data
 giwifi_config.json
+
+# Logs
+*.log
+
+# Local dev tooling & previews
+.agents/
+.claude/
+skills-lock.json
+_theme_preview/
