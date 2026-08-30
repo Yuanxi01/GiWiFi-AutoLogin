@@ -41,13 +41,31 @@ TRAFFIC_RECV_KEY = "traffic_recv"
 # 今日掉线次数配置键
 OFFLINE_DATE_KEY = "offline_date"
 OFFLINE_COUNT_KEY = "offline_count"
+# 使用场景配置键：auto（自动判断）/ school（校园）/ home（家庭）
+SCENE_MODE_KEY = "scene_mode"
 
 APP_NAME = "GiWiFi自动登录"
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.2.1"
 APP_AUTHOR = "YuanXi"
 
 # 检查更新：GitHub 最新 Release
 UPDATE_API = "https://api.github.com/repos/Yuanxi01/GiWiFi-AutoLogin/releases/latest"
+
+
+def get_scene_mode(cfg: dict) -> str:
+    """使用场景：auto（自动判断在校）/ school（校园）/ home（家庭）"""
+    mode = cfg.get(SCENE_MODE_KEY)
+    return mode if mode in ("auto", "school", "home") else "auto"
+
+
+def portal_reachable(portal_url: str, timeout: int = 3) -> bool:
+    """校园网认证页是否可达：可达说明当前在学校网络里"""
+    import requests
+    try:
+        requests.get(portal_url or "http://172.27.253.230/gportal/web/login", timeout=timeout)
+        return True  # 任意 HTTP 响应都算可达（含 302/403）
+    except Exception:
+        return False
 
 # ── 配色 ──────────────────────────────────────────────
 # 设计系统：Minimalism & Swiss Style（ui-ux-pro-max 生成）
@@ -404,24 +422,24 @@ class ToggleSwitch(QWidget):
 
 
 # ═══════════════════════════════════════════════════════
-#  主题模式选择器（白天 / 黑夜 / 跟随系统 三段控件）
+#  通用三段选择器（白天 / 黑夜 / 跟随系统；也用于场景选择）
 # ═══════════════════════════════════════════════════════
 class ThemeModeSelector(QWidget):
     modeChanged = Signal(str)
 
-    _MODES = ["light", "dark", "auto"]
-    _LABELS = ["白天", "黑夜", "跟随系统"]
-
-    def __init__(self, mode: str = "light", parent=None):
+    def __init__(self, mode: str = "light", modes=None, labels=None,
+                 tooltip: str = "", parent=None):
         super().__init__(parent)
+        self._MODES = modes or ["light", "dark", "auto"]
+        self._LABELS = labels or ["白天", "黑夜", "跟随系统"]
         if mode not in self._MODES:
-            mode = "light"
+            mode = self._MODES[0]
         self._mode = mode
         self._index = self._MODES.index(mode)
         self._pos = float(self._index)  # 指示器滑动位置（单位：段）
         self.setFixedHeight(36)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setToolTip("主题模式：白天 / 黑夜 / 跟随系统深色")
+        self.setToolTip(tooltip or " / ".join(self._LABELS))
 
         self._anim = QPropertyAnimation(self, b"indicator_pos")
         self._anim.setDuration(320)
@@ -889,6 +907,34 @@ class LogViewerDialog(QDialog):
 
 
 # ═══════════════════════════════════════════════════════
+#  场景模式选择器（自动判断 / 校园 / 家庭）
+# ═══════════════════════════════════════════════════════
+class SceneModeSelector(ThemeModeSelector):
+    def __init__(self, mode: str = "auto", parent=None):
+        super().__init__(
+            mode,
+            modes=["auto", "school", "home"],
+            labels=["自动判断", "校园", "家庭"],
+            tooltip="使用场景：自动判断是否在校园网；家庭网络下暂停校园网自动登录",
+            parent=parent,
+        )
+
+
+# ═══════════════════════════════════════════════════════
+#  场景探测（后台线程：认证页可达 = 在学校）
+# ═══════════════════════════════════════════════════════
+class SceneCheckWorker(QThread):
+    done = Signal(bool)
+
+    def __init__(self, portal_url: str, parent=None):
+        super().__init__(parent)
+        self._portal = portal_url
+
+    def run(self):
+        self.done.emit(portal_reachable(self._portal))
+
+
+# ═══════════════════════════════════════════════════════
 #  检查更新（后台线程，查 GitHub 最新 Release）
 # ═══════════════════════════════════════════════════════
 class UpdateChecker(QThread):
@@ -945,7 +991,7 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.config = config.copy()
         self.setWindowTitle("设置")
-        self.setFixedSize(340, 350)
+        self.setFixedSize(340, 396)
         self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
 
@@ -996,6 +1042,15 @@ class SettingsDialog(QDialog):
         )
         layout.addWidget(self.silent_start_switch)
 
+        # 使用场景（自动判断 / 校园 / 家庭）
+        scene_label = QLabel("使用场景")
+        scene_label.setFont(APP_FONT_SMALL)
+        scene_label.setStyleSheet(
+            f"color: {CURRENT_THEME['text_sec'].name()}; background: transparent; border: none;")
+        layout.addWidget(scene_label)
+        self.scene_selector = SceneModeSelector(get_scene_mode(self.config))
+        layout.addWidget(self.scene_selector)
+
         # 主题模式选择（白天 / 黑夜 / 跟随系统）
         self.theme_selector = ThemeModeSelector(get_theme_mode(self.config))
         layout.addWidget(self.theme_selector)
@@ -1043,6 +1098,7 @@ class SettingsDialog(QDialog):
         mode = self.theme_selector.mode()
         self.config[THEME_MODE_KEY] = mode
         self.config[DARK_MODE_KEY] = (mode == "dark")  # 兼容旧字段
+        self.config[SCENE_MODE_KEY] = self.scene_selector.mode()
         return self.config
 
     def refresh_theme(self):
@@ -1058,6 +1114,9 @@ class SettingsDialog(QDialog):
             }}
         """)
         self.title_label.setStyleSheet(f"color: {CURRENT_THEME['text'].name()}; background: transparent; border: none;")
+        sec = CURRENT_THEME["text_sec"].name()
+        self.scene_label.setStyleSheet(f"color: {sec}; background: transparent; border: none;")
+        self.version_label.setStyleSheet(f"color: {sec}; background: transparent; border: none;")
 
 
 # ═══════════════════════════════════════════════════════
@@ -1120,12 +1179,21 @@ class MainWindow(QWidget):
         # 预创建设置对话框，避免首次打开卡顿
         self._settings_dialog = SettingsDialog(self.config, self)
         self._settings_dialog.check_update_btn.clicked.connect(self._manual_check_update)
+        self._settings_dialog.scene_selector.modeChanged.connect(self._on_scene_mode_changed)
 
-        # 更新检查 / 断网诊断状态
+        # 更新检查 / 断网诊断 / 场景状态
         self._update_checker = None
         self._new_version = None
         self._diag_worker = None
+        self._scene_worker = None
+        self._auto_at_school = None  # None=未探测, True=在学校, False=在家
         QTimer.singleShot(8000, self._auto_check_update)
+        QTimer.singleShot(1500, self._poll_scene)
+
+        # 场景自动探测：每 5 分钟一次（仅 auto 模式生效）
+        self._scene_timer = QTimer(self)
+        self._scene_timer.timeout.connect(self._poll_scene)
+        self._scene_timer.start(5 * 60 * 1000)
 
     def _effective_dark(self) -> bool:
         """当前应生效的深色状态（auto 模式下读系统设置）"""
@@ -1690,10 +1758,12 @@ class MainWindow(QWidget):
                 download_str = self._format_speed(download_speed)
                 self.speed_label.setText(f"↑{upload_str} ↓{download_str}")
 
-                # 更新托盘 tooltip
+                # 更新托盘 tooltip（家庭模式附加标识）
                 if self.online:
                     url = self.config.get("logout_url", "")
                     today = f"今日 ↑{self._format_amount(self._day_sent)} ↓{self._format_amount(self._day_recv)}"
+                    if not self._scene_school_active():
+                        today += "\n🏠 家庭模式（暂停校园网自动登录）"
                     if url:
                         d = get_online_duration(url)
                         self.tray_icon.setToolTip(f"GiWiFi - 已连接 ({d})\n↑{upload_str} ↓{download_str}\n{today}")
@@ -1777,12 +1847,21 @@ class MainWindow(QWidget):
             self.config[OFFLINE_COUNT_KEY] = self._offline_count
             save_config(self.config)
             self._set_status_look("offline")
-            self.notify("网络断开", "校园网连接已断开，正在尝试自动重连...",
-                        QSystemTrayIcon.MessageIcon.Warning)
+            if self._scene_school_active():
+                self.notify("网络断开", "校园网连接已断开，正在尝试自动重连...",
+                            QSystemTrayIcon.MessageIcon.Warning)
+            else:
+                self.notify("网络已断开", "当前为家庭网络，不会自动登录校园网",
+                            QSystemTrayIcon.MessageIcon.Information)
+        # 场景可能改变状态描述文案（家庭模式）
+        self._apply_scene()
 
     # ── 业务 ──────────────────────────────────────────
     def auto_login(self, portal_url: str):
         try:
+            if not self._scene_school_active():
+                self.log("当前为家庭网络模式，跳过校园网自动登录")
+                return
             if not self.config.get("auto_reconnect", True):
                 self.log("检测到断线，自动登录已关闭")
                 self.notify("网络断开", "检测到断线，但自动登录已关闭",
@@ -1833,6 +1912,8 @@ class MainWindow(QWidget):
         """执行登录重试"""
         if not self.config.get("auto_reconnect", True):
             return
+        if not self._scene_school_active():
+            return  # 家庭网络模式：不重试校园网登录
         # 检查是否已经恢复连接
         if self.online:
             self._login_retry_count = 0
@@ -1858,6 +1939,12 @@ class MainWindow(QWidget):
 
     def manual_login(self):
         try:
+            if not self._scene_school_active():
+                QMessageBox.information(
+                    self, "提示",
+                    "当前是家庭网络环境，无需登录校园网。\n\n"
+                    "如果确实在学校，请到 设置 → 使用场景 选择「校园」或「自动判断」。")
+                return
             u = self.username_input.text().strip()
             pw = self.password_input.text().strip()
             if not u or not pw:
@@ -1936,6 +2023,55 @@ class MainWindow(QWidget):
         save_config(self.config)
         self.log(f"已{'启用' if on else '禁用'}掉线自动登录")
 
+    # ── 使用场景（在校 / 在家）─────────────────────────
+    def _scene_school_active(self) -> bool:
+        """校园网功能是否应处于启用状态"""
+        mode = get_scene_mode(self.config)
+        if mode == "school":
+            return True
+        if mode == "home":
+            return False
+        return self._auto_at_school is not False  # auto：未检出前默认按在校处理
+
+    def _apply_scene(self, announce: bool = False):
+        """按当前场景刷新状态描述与提示"""
+        active = self._scene_school_active()
+        if hasattr(self, "status_desc"):
+            if not active:
+                self.status_desc.setText(
+                    "家庭网络：已暂停校园网自动登录" if self.online
+                    else "未连接网络（家庭模式：不自动登录校园网）")
+            else:
+                self.status_desc.setText(
+                    "网络已连通，可以正常上网" if self.online
+                    else "未连接到网络，等待自动重连...")
+        if announce:
+            self.log("场景切换 → " + ("校园网模式（自动登录已启用）" if active
+                                    else "家庭网络模式（校园网自动登录已暂停）"))
+
+    def _poll_scene(self):
+        """auto 模式下探测认证页可达性，判断是否在学校"""
+        if get_scene_mode(self.config) != "auto":
+            return
+        if self._scene_worker is not None and self._scene_worker.isRunning():
+            return
+        portal = self.config.get("portal_url", "")
+        self._scene_worker = SceneCheckWorker(portal, self)
+        self._scene_worker.done.connect(self._on_scene_detected)
+        self._scene_worker.start()
+
+    def _on_scene_detected(self, at_school: bool):
+        first = self._auto_at_school is None
+        changed = (at_school != self._auto_at_school) and not first
+        self._auto_at_school = at_school
+        if first or changed:
+            self._apply_scene(announce=not first)
+
+    def _on_scene_mode_changed(self, mode: str):
+        self.config[SCENE_MODE_KEY] = mode
+        save_config(self.config)
+        self._apply_scene(announce=True)
+
     # ── 检查更新 ──────────────────────────────────────
     def _auto_check_update(self):
         """启动 8 秒后静默检查一次更新"""
@@ -2007,6 +2143,9 @@ class MainWindow(QWidget):
         )
         self._settings_dialog.theme_selector.set_mode(
             get_theme_mode(self.config), animate=False
+        )
+        self._settings_dialog.scene_selector.set_mode(
+            get_scene_mode(self.config), animate=False
         )
 
         if self._settings_dialog.exec() == QDialog.DialogCode.Accepted:
