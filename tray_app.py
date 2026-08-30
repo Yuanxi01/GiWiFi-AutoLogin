@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import (
     Qt, QTimer, QPoint, QPointF, QRect, QRectF, QSize,
     QPropertyAnimation, QEasingCurve, Property, Signal,
-    QSequentialAnimationGroup, QAbstractAnimation,
+    QSequentialAnimationGroup, QAbstractAnimation, QThread,
 )
 from PySide6.QtGui import (
     QIcon, QPixmap, QPainter, QColor, QFont, QAction,
@@ -24,6 +24,7 @@ from autostart import is_autostart_enabled, enable_autostart, disable_autostart
 from login_worker import login_giwifi, check_online, logout_giwifi, get_online_duration
 from network_checker import NetworkChecker
 from logger import log as file_log
+from diagnose import run_diagnosis
 
 # 通知开关配置键
 NOTIFY_ENABLED_KEY = "notify_enabled"
@@ -37,10 +38,16 @@ THEME_MODE_KEY = "theme_mode"
 TRAFFIC_DATE_KEY = "traffic_date"
 TRAFFIC_SENT_KEY = "traffic_sent"
 TRAFFIC_RECV_KEY = "traffic_recv"
+# 今日掉线次数配置键
+OFFLINE_DATE_KEY = "offline_date"
+OFFLINE_COUNT_KEY = "offline_count"
 
 APP_NAME = "GiWiFi自动登录"
-APP_VERSION = "1.0.3"
+APP_VERSION = "1.2.0"
 APP_AUTHOR = "YuanXi"
+
+# 检查更新：GitHub 最新 Release
+UPDATE_API = "https://api.github.com/repos/Yuanxi01/GiWiFi-AutoLogin/releases/latest"
 
 # ── 配色 ──────────────────────────────────────────────
 # 设计系统：Minimalism & Swiss Style（ui-ux-pro-max 生成）
@@ -882,6 +889,55 @@ class LogViewerDialog(QDialog):
 
 
 # ═══════════════════════════════════════════════════════
+#  检查更新（后台线程，查 GitHub 最新 Release）
+# ═══════════════════════════════════════════════════════
+class UpdateChecker(QThread):
+    foundNew = Signal(str)   # 发现新版本
+    upToDate = Signal()      # 已是最新
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+    def run(self):
+        import requests
+        try:
+            resp = requests.get(
+                UPDATE_API, timeout=8,
+                headers={"Accept": "application/vnd.github+json"},
+            )
+            tag = (resp.json().get("tag_name") or "").lstrip("v").strip()
+
+            def ver_tuple(v):
+                try:
+                    return tuple(int(x) for x in v.split("."))
+                except Exception:
+                    return (0,)
+
+            if tag and ver_tuple(tag) > ver_tuple(APP_VERSION):
+                self.foundNew.emit(tag)
+            else:
+                self.upToDate.emit()
+        except Exception as e:
+            file_log(f"检查更新失败: {e}")
+            self.upToDate.emit()  # 检查失败按最新处理，不打扰用户
+
+
+# ═══════════════════════════════════════════════════════
+#  断网诊断（后台线程）
+# ═══════════════════════════════════════════════════════
+class DiagnoseWorker(QThread):
+    done = Signal(str)
+
+    def __init__(self, portal_url: str, parent=None):
+        super().__init__(parent)
+        self._portal = portal_url
+
+    def run(self):
+        lines, _verdict = run_diagnosis(self._portal)
+        self.done.emit("\n".join(lines))
+
+
+# ═══════════════════════════════════════════════════════
 #  设置对话框
 # ═══════════════════════════════════════════════════════
 class SettingsDialog(QDialog):
@@ -889,7 +945,7 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.config = config.copy()
         self.setWindowTitle("设置")
-        self.setFixedSize(340, 310)
+        self.setFixedSize(340, 350)
         self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
 
@@ -943,6 +999,18 @@ class SettingsDialog(QDialog):
         # 主题模式选择（白天 / 黑夜 / 跟随系统）
         self.theme_selector = ThemeModeSelector(get_theme_mode(self.config))
         layout.addWidget(self.theme_selector)
+
+        # 版本与检查更新
+        ver_row = QHBoxLayout()
+        self.version_label = QLabel(f"当前版本 v{APP_VERSION}")
+        self.version_label.setFont(APP_FONT_SMALL)
+        self.version_label.setStyleSheet(
+            f"color: {CURRENT_THEME['text_sec'].name()}; background: transparent; border: none;")
+        self.check_update_btn = GlassButton("检查更新")
+        ver_row.addWidget(self.version_label)
+        ver_row.addStretch()
+        ver_row.addWidget(self.check_update_btn)
+        layout.addLayout(ver_row)
 
         # 按钮
         btn_layout = QHBoxLayout()
@@ -1051,6 +1119,13 @@ class MainWindow(QWidget):
 
         # 预创建设置对话框，避免首次打开卡顿
         self._settings_dialog = SettingsDialog(self.config, self)
+        self._settings_dialog.check_update_btn.clicked.connect(self._manual_check_update)
+
+        # 更新检查 / 断网诊断状态
+        self._update_checker = None
+        self._new_version = None
+        self._diag_worker = None
+        QTimer.singleShot(8000, self._auto_check_update)
 
     def _effective_dark(self) -> bool:
         """当前应生效的深色状态（auto 模式下读系统设置）"""
@@ -1295,6 +1370,10 @@ class MainWindow(QWidget):
         self.logout_btn.clicked.connect(self.manual_logout)
         btn_row.addWidget(self.logout_btn)
 
+        self.diag_btn = GlassButton("诊断")
+        self.diag_btn.clicked.connect(self.manual_diagnose)
+        btn_row.addWidget(self.diag_btn)
+
         root.addLayout(btn_row)
 
         # ── 开关行 ──
@@ -1500,6 +1579,7 @@ class MainWindow(QWidget):
             ("显示主窗口", self.show_window),
             ("手动登录", self.manual_login),
             ("下线", self.manual_logout),
+            ("断网诊断", self.manual_diagnose),
             ("查看日志", self.show_log_viewer),
             ("退出", self.quit_app),
         ]:
@@ -1562,6 +1642,14 @@ class MainWindow(QWidget):
             self._day_sent = 0.0
             self._day_recv = 0.0
             self._persist_traffic()
+        # 今日掉线次数：按日期重置，重启延续
+        if self.config.get(OFFLINE_DATE_KEY) == today:
+            self._offline_count = int(self.config.get(OFFLINE_COUNT_KEY, 0))
+        else:
+            self._offline_count = 0
+            self.config[OFFLINE_DATE_KEY] = today
+            self.config[OFFLINE_COUNT_KEY] = 0
+            save_config(self.config)
         self._traffic_ticks = 0
         self._speed_timer = QTimer(self)
         self._speed_timer.timeout.connect(self._update_speed)
@@ -1619,21 +1707,25 @@ class MainWindow(QWidget):
             pass
 
     def _update_traffic_label(self):
-        """刷新状态卡上的今日流量行"""
+        """刷新状态卡上的今日流量/掉线统计行"""
         if not hasattr(self, "traffic_label"):
             return
-        self.traffic_label.setText(
-            "今日流量  ↑{} · ↓{}".format(
-                self._format_amount(self._day_sent),
-                self._format_amount(self._day_recv),
-            )
+        text = "今日流量  ↑{} · ↓{}".format(
+            self._format_amount(self._day_sent),
+            self._format_amount(self._day_recv),
         )
+        n = getattr(self, "_offline_count", 0)
+        if n > 0:
+            text += f"  ·  掉线 {n} 次"
+        self.traffic_label.setText(text)
 
     def _persist_traffic(self):
-        """把今日流量写入配置文件"""
+        """把今日流量与掉线次数写入配置文件"""
         self.config[TRAFFIC_DATE_KEY] = time.strftime("%Y-%m-%d")
         self.config[TRAFFIC_SENT_KEY] = float(self._day_sent)
         self.config[TRAFFIC_RECV_KEY] = float(self._day_recv)
+        self.config[OFFLINE_DATE_KEY] = time.strftime("%Y-%m-%d")
+        self.config[OFFLINE_COUNT_KEY] = int(getattr(self, "_offline_count", 0))
         save_config(self.config)
 
     @staticmethod
@@ -1676,6 +1768,14 @@ class MainWindow(QWidget):
             self.tray_icon.setIcon(create_icon("#EF4444"))
             self.status_desc.setText("未连接到网络，等待自动重连...")
             self.duration_label.setText("")
+            # 今日掉线次数 +1（跨零点自动重置）
+            today = time.strftime("%Y-%m-%d")
+            if self.config.get(OFFLINE_DATE_KEY) != today:
+                self.config[OFFLINE_DATE_KEY] = today
+                self._offline_count = 0
+            self._offline_count = getattr(self, "_offline_count", 0) + 1
+            self.config[OFFLINE_COUNT_KEY] = self._offline_count
+            save_config(self.config)
             self._set_status_look("offline")
             self.notify("网络断开", "校园网连接已断开，正在尝试自动重连...",
                         QSystemTrayIcon.MessageIcon.Warning)
@@ -1835,6 +1935,64 @@ class MainWindow(QWidget):
         self.config["auto_reconnect"] = on
         save_config(self.config)
         self.log(f"已{'启用' if on else '禁用'}掉线自动登录")
+
+    # ── 检查更新 ──────────────────────────────────────
+    def _auto_check_update(self):
+        """启动 8 秒后静默检查一次更新"""
+        self._start_update_checker(silent=True)
+
+    def _manual_check_update(self):
+        """设置面板「检查更新」按钮"""
+        self._start_update_checker(silent=False)
+
+    def _start_update_checker(self, silent: bool):
+        if self._update_checker is not None and self._update_checker.isRunning():
+            return
+        if not silent:
+            self._settings_dialog.version_label.setText("正在检查更新...")
+        self._update_checker = UpdateChecker(self)
+        self._update_checker.foundNew.connect(
+            lambda v: self._on_update_found(v, silent))
+        self._update_checker.upToDate.connect(
+            lambda: self._on_update_ok(silent))
+        self._update_checker.start()
+
+    def _on_update_found(self, version: str, silent: bool):
+        self._new_version = version
+        if hasattr(self, "_settings_dialog"):
+            self._settings_dialog.version_label.setText(
+                f"发现新版本 v{version}，请到 GitHub Release 下载")
+        self.log(f"发现新版本 v{version}，请到 GitHub Release 页面下载")
+        self.notify("发现新版本", f"v{version} 已发布，请到 GitHub Release 页面下载更新",
+                    QSystemTrayIcon.MessageIcon.Information, 5000)
+
+    def _on_update_ok(self, silent: bool):
+        if not silent and hasattr(self, "_settings_dialog"):
+            self._settings_dialog.version_label.setText(f"当前已是最新版本 v{APP_VERSION}")
+        self.log("检查更新: 已是最新版本")
+
+    # ── 断网诊断 ──────────────────────────────────────
+    def manual_diagnose(self):
+        """一键诊断掉线原因（网卡/网关/认证系统/外网）"""
+        if self._diag_worker is not None and self._diag_worker.isRunning():
+            return
+        self.diag_btn.setEnabled(False)
+        self.diag_btn.setText("诊断中...")
+        self.log("正在执行断网诊断...")
+        portal = self.config.get("portal_url", "")
+        self._diag_worker = DiagnoseWorker(portal, self)
+        self._diag_worker.done.connect(self._on_diagnosis_done)
+        self._diag_worker.start()
+
+    def _on_diagnosis_done(self, report: str):
+        self.diag_btn.setEnabled(True)
+        self.diag_btn.setText("诊断")
+        self.log("断网诊断完成")
+        box = QMessageBox(self)
+        box.setWindowTitle("断网诊断")
+        box.setText(report)
+        box.setStyleSheet(f"QLabel {{ color: {CURRENT_THEME['text'].name()}; }}")
+        box.exec()
 
     def show_settings(self):
         """显示设置对话框"""

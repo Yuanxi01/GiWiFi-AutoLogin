@@ -10,6 +10,36 @@ from logger import log
 
 AES_KEY = b"1234567887654321"
 
+# 认证错误关键词 → 人话提示（命中即追加到原始错误后面）
+ERROR_HINTS = [
+    ("用户名或密码", "账号或密码错误，请核对后重试（改过密码就用新密码）"),
+    ("密码错误", "账号或密码错误，请核对后重试"),
+    ("不存在", "账号不存在，校园网账号一般是学号，请确认"),
+    ("停机", "账号已停机，可能欠费或被暂停，请到校园网自助服务页面查看"),
+    ("欠费", "校园网账号已欠费，请续费后重试"),
+    ("余额不足", "校园网余额/时长不足，请续费或等待每月重置"),
+    ("流量已用", "校园网流量/时长已用尽，请续费或等待重置"),
+    ("设备", "登录设备数已达上限，请先在其他设备上退出校园网再试"),
+    ("终端", "登录终端数已达上限，请先在其他设备上退出校园网再试"),
+    ("已在线", "该账号可能已在其他设备在线，请先下线其他设备"),
+    ("绑定", "账号绑定校验未通过，可能需要重新绑定设备或账号"),
+    ("黑名单", "账号在黑名单中，请咨询学校网络中心"),
+    ("禁用", "账号已被禁用，请咨询学校网络中心"),
+    ("过期", "账号已过期，请续费或咨询学校网络中心"),
+    ("认证失败", "认证失败，请检查账号密码是否正确"),
+    ("频繁", "尝试过于频繁，请稍等一两分钟再试"),
+]
+
+
+def friendly_error(msg: str) -> str:
+    """把认证系统返回的错误翻译成学生能看懂的提示"""
+    if not msg:
+        return msg
+    for key, hint in ERROR_HINTS:
+        if key in msg:
+            return f"{msg} —— {hint}"
+    return msg
+
 # 全局 session，保持登录 cookies
 _session = requests.Session()
 _session.headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
@@ -137,7 +167,7 @@ def login_giwifi(username: str, password: str, portal_url: str) -> tuple[bool, s
             logout_url = _parse_logout_url(data, base_url)
             return True, "登录成功", logout_url
         else:
-            return False, f"登录失败: {info}", None
+            return False, f"登录失败: {friendly_error(info)}", None
 
     except Exception as e:
         log(f"登录异常: {e}\n{traceback.format_exc()}")
