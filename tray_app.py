@@ -1043,11 +1043,11 @@ class SettingsDialog(QDialog):
         layout.addWidget(self.silent_start_switch)
 
         # 使用场景（自动判断 / 校园 / 家庭）
-        scene_label = QLabel("使用场景")
-        scene_label.setFont(APP_FONT_SMALL)
-        scene_label.setStyleSheet(
+        self.scene_label = QLabel("使用场景")
+        self.scene_label.setFont(APP_FONT_SMALL)
+        self.scene_label.setStyleSheet(
             f"color: {CURRENT_THEME['text_sec'].name()}; background: transparent; border: none;")
-        layout.addWidget(scene_label)
+        layout.addWidget(self.scene_label)
         self.scene_selector = SceneModeSelector(get_scene_mode(self.config))
         layout.addWidget(self.scene_selector)
 
