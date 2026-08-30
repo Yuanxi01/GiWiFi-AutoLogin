@@ -45,7 +45,7 @@ OFFLINE_COUNT_KEY = "offline_count"
 SCENE_MODE_KEY = "scene_mode"
 
 APP_NAME = "GiWiFi自动登录"
-APP_VERSION = "1.2.1"
+APP_VERSION = "1.3.0"
 APP_AUTHOR = "YuanXi"
 
 # 检查更新：GitHub 最新 Release
@@ -67,81 +67,25 @@ def portal_reachable(portal_url: str, timeout: int = 3) -> bool:
     except Exception:
         return False
 
-# ── 配色 ──────────────────────────────────────────────
-# 设计系统：Minimalism & Swiss Style（ui-ux-pro-max 生成）
-# 两套完整主题：白天模式「晴空白」 / 黑夜模式「深夜蓝」
-# 全部语义色 token 化，正文对比度 ≥ 4.5:1
+# ── 配色 / 主题 ─────────────────────────────────────────
+# 默认主题（晴空白 / 深夜蓝）已原样收编至 themes/default.py，视觉零改动；
+# 液态玻璃主题（可选）在 themes/liquid_glass.py，由设置面板「主题风格」切换。
+# 切换采用「写入配置 + 重启生效」：WA_TranslucentBackground 仅在窗口 show 前
+# 设置才有效，运行中热切换会导致透明失效（取舍说明见 themes/theme_manager.py）。
+from themes import ThemeManager, THEME_DEFAULT, THEME_GLASS
+from themes.default import LIGHT_THEME, DARK_THEME, build_window_qss
+import themes.liquid_glass as _glass
 
-# 白天模式 · 晴空白：柔和冷灰蓝底 + 石板墨文字 + 靛蓝主色
-LIGHT_THEME = {
-    # 窗口
-    "bg_top": QColor(0xF8, 0xFA, 0xFC),          # slate-50（非纯白底）
-    "bg_bot": QColor(0xE6, 0xED, 0xF5),          # 柔和冷灰蓝
-    "window_border": QColor(0xD8, 0xE2, 0xEC),
-    "shadow": QColor(15, 23, 42, 36),
-    # 卡片
-    "card": QColor(255, 255, 255, 244),
-    "card_border": QColor(0xE2, 0xE8, 0xF0),
-    # 文字
-    "text": QColor(0x0F, 0x17, 0x2A),            # slate-900
-    "text_sec": QColor(0x47, 0x55, 0x69),        # slate-600
-    "text_ter": QColor(0x64, 0x74, 0x8B),        # slate-500
-    # 主色
-    "primary": QColor(0x1D, 0x4E, 0xD8),         # blue-700
-    "primary_hover": QColor(0x1E, 0x40, 0xAF),   # blue-800
-    "focus_ring": QColor(29, 78, 216, 110),
-    # 语义色
-    "success": QColor(0x15, 0x80, 0x3D),         # green-700 文字
-    "success_dot": QColor(0x22, 0xC5, 0x5E),     # green-500 圆点
-    "danger": QColor(0xDC, 0x26, 0x26),          # red-600 文字
-    "danger_dot": QColor(0xEF, 0x44, 0x44),
-    # 控件
-    "input_bg": QColor(255, 255, 255, 235),
-    "input_border": QColor(0xC9, 0xD4, 0xE0),
-    "input_focus_bg": QColor(255, 255, 255, 255),
-    "surface": QColor(255, 255, 255, 240),       # 次按钮
-    "surface_hover": QColor(0xEE, 0xF3, 0xF8),
-    "track_off": QColor(0xC6, 0xD2, 0xDF),       # 开关关闭态轨道
-    "divider": QColor(0xE6, 0xEC, 0xF3),
-    "highlight": QColor(255, 255, 255, 110),
-}
-
-# 黑夜模式 · 深夜蓝：slate-900 夜空底 + 亮蓝主色 + 高亮状态色
-DARK_THEME = {
-    # 窗口
-    "bg_top": QColor(0x0F, 0x17, 0x2A),          # slate-900
-    "bg_bot": QColor(0x0A, 0x0F, 0x1E),          # 更深一档
-    "window_border": QColor(51, 65, 85, 160),    # slate-700
-    "shadow": QColor(0, 0, 0, 130),
-    # 卡片
-    "card": QColor(30, 41, 59, 235),             # slate-800
-    "card_border": QColor(0x33, 0x41, 0x55),     # slate-700（暗色下清晰可见）
-    # 文字
-    "text": QColor(0xF8, 0xFA, 0xFC),            # slate-50
-    "text_sec": QColor(0x94, 0xA3, 0xB8),        # slate-400
-    "text_ter": QColor(0x8A, 0x99, 0xB0),
-    # 主色
-    "primary": QColor(0x25, 0x63, 0xEB),         # blue-600（白字 4.5:1）
-    "primary_hover": QColor(0x3B, 0x82, 0xF6),   # blue-500
-    "focus_ring": QColor(96, 165, 250, 150),
-    # 语义色
-    "success": QColor(0x4A, 0xDE, 0x80),         # green-400 文字（暗底高对比）
-    "success_dot": QColor(0x22, 0xC5, 0x5E),
-    "danger": QColor(0xF8, 0x71, 0x71),          # red-400 文字
-    "danger_dot": QColor(0xEF, 0x44, 0x44),
-    # 控件
-    "input_bg": QColor(10, 16, 30, 235),         # 深一档内嵌输入框
-    "input_border": QColor(0x33, 0x41, 0x55),
-    "input_focus_bg": QColor(10, 16, 30, 255),
-    "surface": QColor(37, 48, 70, 240),          # 次按钮（比卡片亮半档）
-    "surface_hover": QColor(0x2E, 0x3B, 0x57),
-    "track_off": QColor(0x3A, 0x47, 0x61),
-    "divider": QColor(0x26, 0x32, 0x4A),
-    "highlight": QColor(255, 255, 255, 16),
-}
+# 主题家族：default（原有样式，零改动启动） / liquid_glass（液态玻璃，需重启生效）
+THEME_FAMILY = "default"
 
 # 当前主题（默认白天模式）
 CURRENT_THEME = LIGHT_THEME.copy()
+
+
+def is_glass() -> bool:
+    """当前是否为液态玻璃主题家族"""
+    return THEME_FAMILY == "liquid_glass"
 
 # 主题切换过渡：进度由属性动画驱动（0→1），期间所有自绘控件取旧→新插值色
 _TRANSITION_FROM = None
@@ -196,8 +140,6 @@ def _rgba(c: QColor, alpha: int = None) -> str:
     return f"rgba({c.red()}, {c.green()}, {c.blue()}, {a})"
 
 
-def build_window_qss(t: dict) -> str:
-    """由主题 token 生成全局 QSS（输入框 / 文字），替代硬编码色值"""
     return f"""
     QLabel {{
         color: {t['text'].name()};
@@ -239,19 +181,53 @@ APP_FONT_SMALL = _make_font(9, QFont.Weight.Medium)
 APP_FONT_SEC = _make_font(10, QFont.Weight.Medium)
 
 
-def create_icon(color: str = "#4CAF50") -> QIcon:
+def _resource_path(name: str) -> str:
+    """资源文件路径：onefile 解包目录 / exe 目录 / 源码目录依次查找"""
+    bases = []
+    if getattr(sys, "_MEIPASS", None):
+        bases.append(sys._MEIPASS)
+    bases.append(os.path.dirname(sys.executable) if getattr(sys, "frozen", False)
+                 else os.path.dirname(os.path.abspath(__file__)))
+    for base in bases:
+        p = os.path.join(base, name)
+        if os.path.exists(p):
+            return p
+    return os.path.join(bases[-1], name)
+
+
+def create_icon(color: str = "#34C759") -> QIcon:
+    """应用图标：叶片图标 + 右下角状态小圆点（在线绿/离线红/检测中灰）"""
+    try:
+        base = QPixmap(_resource_path("app_icon.png"))
+        if not base.isNull():
+            size = 64
+            pm = QPixmap(size, size)
+            pm.fill(Qt.transparent)
+            p = QPainter(pm)
+            p.setRenderHint(QPainter.SmoothPixmapTransform)
+            p.setRenderHint(QPainter.Antialiasing)
+            p.drawPixmap(0, 0, size, size, base)
+            # 状态小圆点（右下角，白描边保证浅色背景可见）
+            p.setBrush(QColor(color))
+            p.setPen(QPen(Qt.white, 3))
+            p.drawEllipse(QPoint(size - 13, size - 13), 8, 8)
+            p.end()
+            return QIcon(pm)
+    except Exception:
+        pass
+    # 兜底：资源缺失时回退到旧版自绘图标
     pixmap = QPixmap(64, 64)
     pixmap.fill(Qt.transparent)
     p = QPainter(pixmap)
     p.setRenderHint(QPainter.Antialiasing)
     p.setBrush(QColor(color))
-    p.setPen(Qt.NoPen)
+    p.setPen(Qt.PenStyle.NoPen)
     p.drawEllipse(4, 4, 56, 56)
     p.setPen(QColor("white"))
     p.setFont(QFont("Arial", 24, QFont.Weight.Bold))
     p.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, "W")
     p.end()
-    return QIcon(pixmap)
+    return QIcon
 
 
 def lerp_color(c1: QColor, c2: QColor, t: float) -> QColor:
@@ -314,9 +290,16 @@ class ToggleSwitch(QWidget):
         super().__init__(parent)
         self._text = text
         self._checked = checked
+        # 玻璃主题：48×28 iOS 胶囊（选中态 #34C759，由 _paint_glass_track 绘制）
+        if THEME_FAMILY == "liquid_glass":
+            self._LEFT_X = 3.0
+            self._RIGHT_X = 23.0
         self._circle_x = self._RIGHT_X if checked else self._LEFT_X
         self._bg_color = QColor(theme_color("primary")) if checked else QColor(theme_color("track_off"))
-        self.setFixedSize(58 + (len(text) * 13 + 8 if text else 0), 30)
+        if THEME_FAMILY == "liquid_glass":
+            self.setFixedSize(48 + (len(text) * 13 + 8 if text else 0), 30)
+        else:
+            self.setFixedSize(58 + (len(text) * 13 + 8 if text else 0), 30)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
         # Q 弹回弹：滑块带轻微过冲再落位
@@ -357,6 +340,37 @@ class ToggleSwitch(QWidget):
             return self._bg_color
         return QColor(theme_color("primary") if self._checked else theme_color("track_off"))
 
+    def _paint_glass_track(self, event):
+        """液态玻璃：48×28 iOS 胶囊开关（选中态 #34C759，滑块带位移动画）"""
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        track = QRectF(1, 1, 48, 28)
+        tp = QPainterPath()
+        tp.addRoundedRect(track, 14, 14)
+        if self._checked:
+            p.fillPath(tp, QColor("#34C759"))
+        else:
+            p.fillPath(tp, QColor(255, 255, 255, 45))
+            p.setPen(QPen(QColor(255, 255, 255, 70), 1))
+            p.drawPath(tp)
+        # 滑块（复用 circle_x 位移动画）
+        cx = self._circle_x + 12
+        cy = 15.0
+        p.setPen(Qt.PenStyle.NoPen)
+        shadow = QRadialGradient(QPointF(cx, cy + 1), 14)
+        shadow.setColorAt(0.4, QColor(0, 0, 0, 50))
+        shadow.setColorAt(1, QColor(0, 0, 0, 0))
+        p.setBrush(shadow)
+        p.drawEllipse(QPointF(cx, cy + 0.5), 13.5, 13.5)
+        p.setBrush(QColor("white"))
+        p.drawEllipse(QPointF(cx, cy), 12, 12)
+        if self._text:
+            p.setPen(QColor("#F4F7FB"))
+            p.setFont(APP_FONT)
+            p.drawText(QRectF(56, 0, self.width() - 56, 30),
+                       Qt.AlignmentFlag.AlignVCenter, self._text)
+        p.end()
+
     def setChecked(self, v: bool):
         self._checked = v
         target_x = self._RIGHT_X if v else self._LEFT_X
@@ -377,38 +391,56 @@ class ToggleSwitch(QWidget):
             self.toggled.emit(self._checked)
 
     def paintEvent(self, event):
+        if THEME_FAMILY == "liquid_glass":
+            self._paint_glass_track(event)
+            return
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
 
+        dark = theme_color("text").red() > 128  # 经典家族的深浅主题
+
+        # ── 内凹轨道（Neumorphism 凹槽：上沿压暗、下沿提亮）──
         track = QRectF(2, 4, 50, 22)
         tp = QPainterPath()
         tp.addRoundedRect(track, 11, 11)
-        p.fillPath(tp, self._track_color())
+        p.fillPath(tp, QColor("#E2E8F2") if not dark else QColor(9, 14, 26))
+        p.save()
+        p.setClipRect(QRectF(track.x(), track.y(), track.width(), track.height() / 2))
+        p.setPen(QPen(QColor(0, 0, 0, 38) if not dark else QColor(0, 0, 0, 150), 2))
+        p.drawPath(tp)
+        p.restore()
+        p.save()
+        p.setClipRect(QRectF(track.x(), track.y() + track.height() / 2,
+                             track.width(), track.height() / 2))
+        p.setPen(QPen(QColor(255, 255, 255, 220) if not dark else QColor(255, 255, 255, 26), 2))
+        p.drawPath(tp)
+        p.restore()
 
-        # 圆形滑块 (直径 22, 半径 10)
+        # ── 浮起滑块（投影 + 立体高光；选中态为品牌蓝）──
         cx = self._circle_x + 11
         cy = 15.0
         r = 10.0
+        p.setPen(Qt.PenStyle.NoPen)
 
-        p.setPen(Qt.NoPen)
-
-        # 滑块柔和投影（单层，极简）
-        shadow = QRadialGradient(QPointF(cx, cy + 1), r + 3)
-        shadow.setColorAt(0.4, QColor(0, 0, 0, 45))
+        shadow = QRadialGradient(QPointF(cx, cy + 1.5), r + 4)
+        shadow.setColorAt(0.35, QColor(0, 0, 0, 70) if not dark else QColor(0, 0, 0, 160))
         shadow.setColorAt(1, QColor(0, 0, 0, 0))
         p.setBrush(shadow)
-        p.drawEllipse(QPointF(cx, cy + 0.5), r + 2.5, r + 2.5)
+        p.drawEllipse(QPointF(cx, cy + 0.5), r + 3, r + 3)
 
-        # 白色圆
-        p.setBrush(QColor(255, 255, 255))
+        knob = QRadialGradient(QPointF(cx - r * 0.35, cy - r * 0.4), r * 1.9)
+        if self._checked:
+            knob.setColorAt(0, QColor(0x5E, 0x8A, 0xF5) if not dark else QColor(0x3B, 0x82, 0xF6))
+            knob.setColorAt(1, QColor(0x2F, 0x5F, 0xD0) if not dark else QColor(0x1D, 0x4E, 0xD8))
+            ring = QColor(255, 255, 255, 70) if not dark else QColor(0, 0, 0, 60)
+        else:
+            knob.setColorAt(0, QColor(255, 255, 255) if not dark else QColor(0xD8, 0xDF, 0xEA))
+            knob.setColorAt(1, QColor(0xEC, 0xF0, 0xF7) if not dark else QColor(0x9A, 0xA6, 0xBC))
+            ring = QColor(0, 0, 0, 30) if not dark else QColor(0, 0, 0, 90)
+        p.setBrush(knob)
         p.drawEllipse(QPointF(cx, cy), r, r)
-
-        # 顶部微高光
-        hl = QRadialGradient(QPointF(cx - 2, cy - 3), r)
-        hl.setColorAt(0, QColor(255, 255, 255, 140))
-        hl.setColorAt(0.4, QColor(255, 255, 255, 40))
-        hl.setColorAt(1, QColor(255, 255, 255, 0))
-        p.setBrush(hl)
+        p.setPen(QPen(ring, 1))
+        p.setBrush(Qt.BrushStyle.NoBrush)
         p.drawEllipse(QPointF(cx, cy), r, r)
 
         # 文字
@@ -419,6 +451,136 @@ class ToggleSwitch(QWidget):
                        Qt.AlignmentFlag.AlignVCenter, self._text)
 
         p.end()
+        p.end()
+
+
+# ═══════════════════════════════════════════════════════
+#  液态玻璃按钮（仅液态玻璃主题使用；经典主题继续用 GlassButton）
+#  三层自绘：半透明基底 + 顶部白色高光渐变 + 1.2px 白描边
+#  胶囊造型（圆角 = 高度一半，高 44px），悬浮变亮 / 按压下沉回弹
+# ═══════════════════════════════════════════════════════
+class LiquidGlassButton(QPushButton):
+    def __init__(self, text: str, primary: bool = False, parent=None):
+        super().__init__(text, parent)
+        self._primary = primary      # 主按钮基底稍亮
+        self._danger = False         # 红色玻璃变体（「下线」按钮）
+        self._hover_progress = 0.0   # 悬浮进度 0..1（220ms OutCubic）
+        self._press_t = 0.0          # 按压进度 0..1（下沉/缩放由此派生）
+        self.setFixedHeight(_glass.BUTTON_HEIGHT)  # 44px，胶囊圆角 = 高度一半
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFont(APP_FONT_BOLD)
+
+        # 悬浮：220ms OutCubic 变亮
+        self._hover_anim = QPropertyAnimation(self, b"hover_progress")
+        self._hover_anim.setDuration(220)
+        self._hover_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        # 按压：260ms OutBack 弹性回弹（下沉 2px + 缩放 0.98 复位）
+        self._press_anim = QPropertyAnimation(self, b"press_t")
+        self._press_anim.setDuration(260)
+        self._press_anim.setEasingCurve(QEasingCurve.Type.OutBack)
+
+    # ── 动画属性 ─────────────────────────────────────
+    def _get_hover(self):
+        return self._hover_progress
+
+    def _set_hover(self, v):
+        self._hover_progress = max(0.0, min(1.0, v))
+        self.update()
+
+    hover_progress = Property(float, _get_hover, _set_hover)
+
+    def _get_press(self):
+        return self._press_t
+
+    def _set_press(self, v):
+        self._press_t = max(0.0, min(1.0, v))
+        self.update()
+
+    press_t = Property(float, _get_press, _set_press)
+
+    def set_danger(self, on: bool):
+        """红色玻璃变体（用于「下线」等警示动作）"""
+        self._danger = on
+        self.update()
+
+    # ── 交互 ─────────────────────────────────────────
+    def enterEvent(self, event):
+        self._hover_anim.stop()
+        self._hover_anim.setStartValue(self._hover_progress)
+        self._hover_anim.setEndValue(1.0)
+        self._hover_anim.start()
+
+    def leaveEvent(self, event):
+        self._hover_anim.stop()
+        self._hover_anim.setStartValue(self._hover_progress)
+        self._hover_anim.setEndValue(0.0)
+        self._hover_anim.start()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._press_anim.stop()
+            self._press_anim.setStartValue(self._press_t)
+            self._press_anim.setEndValue(1.0)
+            self._press_anim.start()
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        # 松开：OutBack 弹性回弹（先弹出过冲再落回 0）
+        self._press_anim.stop()
+        self._press_anim.setStartValue(self._press_t)
+        self._press_anim.setEndValue(0.0)
+        self._press_anim.start()
+        super().mouseReleaseEvent(event)
+
+    # ── 绘制 ─────────────────────────────────────────
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        w, h = self.width(), self.height()
+
+        # 按压派生量：下沉 2px + 缩放 0.98
+        sink = _glass.BUTTON_PRESS_SINK_PX * self._press_t
+        scale = 1.0 - (1.0 - _glass.BUTTON_PRESS_SCALE) * self._press_t
+        p.translate(w / 2, h / 2)
+        p.scale(scale, scale)
+        p.translate(-w / 2, -h / 2 + sink)
+
+        hv = self._hover_progress
+        rect = QRectF(1, 1, w - 2, h - 2)
+        path = QPainterPath()
+        path.addRoundedRect(rect, h * _glass.BUTTON_RADIUS_RATIO, h * _glass.BUTTON_RADIUS_RATIO)
+
+        # 第 1 层：半透明基底（悬浮动态加深；危险动作用红色玻璃）
+        if self._danger:
+            base_a = 110 + int(40 * hv)
+            p.fillPath(path, QColor(255, 59, 48, base_a))
+        else:
+            base_a = _glass.BUTTON_BASE_ALPHA + int(
+                (_glass.BUTTON_BASE_HOVER_ALPHA - _glass.BUTTON_BASE_ALPHA) * hv)
+            p.fillPath(path, QColor(255, 255, 255, base_a))
+
+        # 第 2 层：顶部白色高光渐变（上浓下淡，玻璃的"高光带"）
+        hl = QLinearGradient(QPointF(0, 0), QPointF(0, h * 0.55))
+        top_a = int(_glass.BUTTON_HIGHLIGHT_ALPHA * (0.55 + 0.45 * hv))
+        hl.setColorAt(0.0, QColor(255, 255, 255, top_a))
+        hl.setColorAt(1.0, QColor(255, 255, 255, 0))
+        p.fillPath(path, hl)
+
+        # 第 3 层：1.2px 白描边（悬浮增亮）
+        border_a = _glass.BUTTON_BORDER_ALPHA + int(
+            (_glass.BUTTON_BORDER_HOVER_ALPHA - _glass.BUTTON_BORDER_ALPHA) * hv)
+        if self._danger:
+            p.setPen(QPen(QColor(255, 150, 143, border_a), 1.2))
+        else:
+            p.setPen(QPen(QColor(255, 255, 255, border_a), 1.2))
+        p.drawPath(path)
+
+        # 文字（白色粗体，保证玻璃上对比度）
+        p.setPen(QColor("white"))
+        p.setFont(self.font())
+        p.drawText(rect, Qt.AlignmentFlag.AlignCenter, self.text())
+        p.end()
+
 
 
 # ═══════════════════════════════════════════════════════
@@ -477,8 +639,8 @@ class ThemeModeSelector(QWidget):
     def mousePressEvent(self, event):
         if event.button() != Qt.LeftButton:
             return
-        seg_w = self.width() / 3.0
-        idx = max(0, min(2, int(event.position().x() / seg_w)))
+        seg_w = self.width() / len(self._MODES)  # 按模式数量分段（2 段/3 段通用）
+        idx = max(0, min(len(self._MODES) - 1, int(event.position().x() / seg_w)))
         if self._MODES[idx] != self._mode:
             self.set_mode(self._MODES[idx])
             self.modeChanged.emit(self._mode)
@@ -497,7 +659,7 @@ class ThemeModeSelector(QWidget):
         p.drawPath(tp)
 
         # 滑动指示器（Q 弹回弹）
-        seg_w = w / 3.0
+        seg_w = w / len(self._MODES)  # 按模式数量分段（2 段/3 段通用）
         pad = 3.0
         ind = QRectF(pad + self._pos * seg_w, pad, seg_w - pad * 2, h - pad * 2)
         ip = QPainterPath()
@@ -767,7 +929,27 @@ class ThemeToggleButton(QPushButton):
 # ═══════════════════════════════════════════════════════
 #  日志查看器对话框
 # ═══════════════════════════════════════════════════════
-class LogViewerDialog(QDialog):
+class _DraggableDialogMixin:
+    """无边框弹窗拖动：按住空白处/标签文字即可移动窗口（子控件不受影响）"""
+
+    def mousePressEvent(self, e):
+        if e.button() == Qt.LeftButton:
+            self._drag_offset = e.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            e.accept()
+        super().mousePressEvent(e)
+
+    def mouseMoveEvent(self, e):
+        if getattr(self, "_drag_offset", None) is not None and (e.buttons() & Qt.LeftButton):
+            self.move(e.globalPosition().toPoint() - self._drag_offset)
+            e.accept()
+        super().mouseMoveEvent(e)
+
+    def mouseReleaseEvent(self, e):
+        self._drag_offset = None
+        super().mouseReleaseEvent(e)
+
+
+class LogViewerDialog(_DraggableDialogMixin, QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("日志查看器")
@@ -786,16 +968,22 @@ class LogViewerDialog(QDialog):
         # 容器
         self._container = QWidget()
         self._container.setObjectName("logViewerContainer")
-        self._container.setStyleSheet(f"""
-            #logViewerContainer {{
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 {CURRENT_THEME['bg_top'].name()}, stop:1 {CURRENT_THEME['bg_bot'].name()});
-                border-radius: 16px;
-                border: 1px solid rgba({CURRENT_THEME['card_border'].red()},
-                    {CURRENT_THEME['card_border'].green()},
-                    {CURRENT_THEME['card_border'].blue()}, 220);
-            }}
-        """)
+        if is_glass():
+            # 液态玻璃：容器半透明白，背景由 DWM Acrylic 提供
+            self._container.setStyleSheet(
+                "#logViewerContainer { background: rgba(15, 23, 42, 150); "
+                "border-radius: 16px; border: 1px solid rgba(255, 255, 255, 70); }")
+        else:
+            self._container.setStyleSheet(f"""
+                #logViewerContainer {{
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                        stop:0 {CURRENT_THEME['bg_top'].name()}, stop:1 {CURRENT_THEME['bg_bot'].name()});
+                    border-radius: 16px;
+                    border: 1px solid rgba({CURRENT_THEME['card_border'].red()},
+                        {CURRENT_THEME['card_border'].green()},
+                        {CURRENT_THEME['card_border'].blue()}, 220);
+                }}
+            """)
         outer.addWidget(self._container)
 
         layout = QVBoxLayout(self._container)
@@ -877,6 +1065,11 @@ class LogViewerDialog(QDialog):
         shadow.setColor(QColor(0, 0, 0, 80))
         shadow.setOffset(0, 8)
         self._container.setGraphicsEffect(shadow)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        # 液态玻璃主题：纯透明（与主窗口一致，不再申请 DWM backdrop）
+        pass
 
     def load_logs(self):
         """加载日志文件"""
@@ -986,12 +1179,12 @@ class DiagnoseWorker(QThread):
 # ═══════════════════════════════════════════════════════
 #  设置对话框
 # ═══════════════════════════════════════════════════════
-class SettingsDialog(QDialog):
+class SettingsDialog(_DraggableDialogMixin, QDialog):
     def __init__(self, config: dict, parent=None):
         super().__init__(parent)
         self.config = config.copy()
         self.setWindowTitle("设置")
-        self.setFixedSize(340, 396)
+        self.setFixedSize(340, 448)
         self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
 
@@ -1052,30 +1245,59 @@ class SettingsDialog(QDialog):
         layout.addWidget(self.scene_selector)
 
         # 主题模式选择（白天 / 黑夜 / 跟随系统）
+        theme_label = QLabel("主题模式（经典风格下生效）")
+        theme_label.setFont(APP_FONT_SMALL)
+        theme_label.setStyleSheet(
+            f"color: {CURRENT_THEME['text_sec'].name()}; background: transparent; border: none;")
+        layout.addWidget(theme_label)
         self.theme_selector = ThemeModeSelector(get_theme_mode(self.config))
         layout.addWidget(self.theme_selector)
 
-        # 版本与检查更新
+        # 主题风格（经典 / 液态玻璃）——写入配置，重启生效
+        family_label = QLabel("主题风格")
+        family_label.setFont(APP_FONT_SMALL)
+        family_label.setStyleSheet(
+            f"color: {CURRENT_THEME['text_sec'].name()}; background: transparent; border: none;")
+        layout.addWidget(family_label)
+        self.family_selector = ThemeModeSelector(
+            self.config.get("theme", THEME_DEFAULT),
+            modes=[THEME_DEFAULT, THEME_GLASS],
+            labels=["经典", "液态玻璃"],
+            tooltip="液态玻璃为 Windows 11 毛玻璃效果；切换写入配置，重启后生效",
+        )
+        self.family_selector.modeChanged.connect(self._on_family_changed)
+        layout.addWidget(self.family_selector)
+
+        # 分隔呼吸
+        layout.addSpacing(6)
+
+        # 版本与检查更新（独立一行，不再与按钮挤在一起）
         ver_row = QHBoxLayout()
+        ver_row.setSpacing(10)
         self.version_label = QLabel(f"当前版本 v{APP_VERSION}")
         self.version_label.setFont(APP_FONT_SMALL)
         self.version_label.setStyleSheet(
             f"color: {CURRENT_THEME['text_sec'].name()}; background: transparent; border: none;")
         self.check_update_btn = GlassButton("检查更新")
+        self.check_update_btn.setFixedHeight(30)
+        self.check_update_btn.setFixedWidth(108)
         ver_row.addWidget(self.version_label)
         ver_row.addStretch()
         ver_row.addWidget(self.check_update_btn)
         layout.addLayout(ver_row)
 
-        # 按钮
+        # 按钮（统一高度，左右等宽）
+        layout.addSpacing(6)
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(12)
 
         ok_btn = GlassButton("确定", primary=True)
+        ok_btn.setFixedHeight(36)
         ok_btn.clicked.connect(self.accept)
         btn_layout.addWidget(ok_btn)
 
         cancel_btn = GlassButton("取消")
+        cancel_btn.setFixedHeight(36)
         cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(cancel_btn)
 
@@ -1092,6 +1314,11 @@ class SettingsDialog(QDialog):
         shadow.setOffset(0, 8)
         self._container.setGraphicsEffect(shadow)
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        # 液态玻璃主题：纯透明（与主窗口一致，不再申请 DWM backdrop）
+        pass
+
     def get_config(self) -> dict:
         self.config[NOTIFY_ENABLED_KEY] = self.notify_switch.isChecked()
         self.config[SILENT_START_KEY] = self.silent_start_switch.isChecked()
@@ -1099,20 +1326,40 @@ class SettingsDialog(QDialog):
         self.config[THEME_MODE_KEY] = mode
         self.config[DARK_MODE_KEY] = (mode == "dark")  # 兼容旧字段
         self.config[SCENE_MODE_KEY] = self.scene_selector.mode()
+        self.config["theme"] = self.family_selector.mode()  # 主题家族（重启生效）
         return self.config
+
+    def _on_family_changed(self, family: str):
+        """主题风格切换：写入配置 + 提示重启
+        （WA_TranslucentBackground 仅在窗口 show 前设置才有效，
+        运行中热切换会导致毛玻璃透明失效，因此采用重启方案）"""
+        ThemeManager.save_family(self.config, family)
+        save_config(self.config)
+        QMessageBox.information(
+            self, "主题风格已保存",
+            f"主题风格已切换为「{'液态玻璃' if family == THEME_GLASS else '经典'}」，"
+            "重启软件后生效。\n\n"
+            "（毛玻璃依托系统窗口合成，运行中直接切换会导致透明失效，"
+            "因此需要重启一次软件；已自动保存，随时可切回「经典」。）")
 
     def refresh_theme(self):
         """刷新对话框主题样式"""
-        self._container.setStyleSheet(f"""
-            #settingsContainer {{
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 {CURRENT_THEME['bg_top'].name()}, stop:1 {CURRENT_THEME['bg_bot'].name()});
-                border-radius: 16px;
-                border: 1px solid rgba({CURRENT_THEME['card_border'].red()},
-                    {CURRENT_THEME['card_border'].green()},
-                    {CURRENT_THEME['card_border'].blue()}, 220);
-            }}
-        """)
+        if is_glass():
+            # 液态玻璃：容器半透明白，背景由 DWM Acrylic 提供
+            self._container.setStyleSheet(
+                "#settingsContainer { background: rgba(15, 23, 42, 140); "
+                "border-radius: 16px; border: 1px solid rgba(255, 255, 255, 70); }")
+        else:
+            self._container.setStyleSheet(f"""
+                #settingsContainer {{
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                        stop:0 {CURRENT_THEME['bg_top'].name()}, stop:1 {CURRENT_THEME['bg_bot'].name()});
+                    border-radius: 16px;
+                    border: 1px solid rgba({CURRENT_THEME['card_border'].red()},
+                        {CURRENT_THEME['card_border'].green()},
+                        {CURRENT_THEME['card_border'].blue()}, 220);
+                }}
+            """)
         self.title_label.setStyleSheet(f"color: {CURRENT_THEME['text'].name()}; background: transparent; border: none;")
         sec = CURRENT_THEME["text_sec"].name()
         self.scene_label.setStyleSheet(f"color: {sec}; background: transparent; border: none;")
@@ -1146,6 +1393,14 @@ class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.config = load_config()
+        # 主题家族：default（原有样式，零改动）/ liquid_glass（液态玻璃，重启生效）
+        global THEME_FAMILY
+        self.theme_manager = ThemeManager()
+        THEME_FAMILY = self.theme_manager.load_family(self.config)
+        # 把 theme 键固化进主配置：否则周期性的 _persist_traffic 整体写盘
+        # 会把设置面板刚写入的 theme 字段覆盖回默认（真实踩过的坑）
+        self.config.setdefault("theme", THEME_FAMILY)
+        self._backdrop_applied = False
         self.online = False
         self._drag_pos = None
         self._radius = 18
@@ -1159,7 +1414,7 @@ class MainWindow(QWidget):
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setFixedSize(APP_WIDTH, APP_HEIGHT)
-        self.setWindowIcon(create_icon())
+        self.setWindowIcon(create_icon("#9AA3AF"))  # 检测中：灰色状态点
 
         # 应用主题
         self._apply_theme()
@@ -1203,26 +1458,34 @@ class MainWindow(QWidget):
         return mode == "dark"
 
     def _apply_theme(self):
-        """应用当前主题；运行中切换时带 320ms 颜色淡化 + Q 弹脉冲"""
+        """应用当前主题；运行中切换时带 320ms 颜色淡化 + Q 弹脉冲（仅经典主题）"""
         global CURRENT_THEME, _TRANSITION_FROM
-        is_dark = self._effective_dark()
-        self._last_effective_dark = is_dark
-        new_theme = (DARK_THEME if is_dark else LIGHT_THEME).copy()
-
-        can_fade = hasattr(self, "_theme_anim") and new_theme is not CURRENT_THEME
-        if can_fade:
-            _TRANSITION_FROM = CURRENT_THEME
-        CURRENT_THEME = new_theme
-        self.setStyleSheet(build_window_qss(CURRENT_THEME))
-
-        if can_fade:
-            self._theme_anim.stop()
-            self._theme_anim.setStartValue(0.0)
-            self._theme_anim.setEndValue(1.0)
-            self._theme_anim.start()
-            self._pop_window()
+        if is_glass():
+            # 液态玻璃：CURRENT_THEME 换成玻璃语义色（key 与默认主题一致）；
+            # QSS 先 setStyleSheet("") 清空再套玻璃版，避免两套样式残留叠加
+            CURRENT_THEME = _glass.GLASS_THEME.copy()
+            is_dark = self._effective_dark()  # 仅用于昼夜按钮图标同步（玻璃配色固定白色文字）
+            self.setStyleSheet("")
+            self.setStyleSheet(_glass.GLASS_QSS)
         else:
-            set_transition_progress(1.0)
+            is_dark = self._effective_dark()
+            self._last_effective_dark = is_dark
+            new_theme = (DARK_THEME if is_dark else LIGHT_THEME).copy()
+
+            can_fade = hasattr(self, "_theme_anim") and new_theme is not CURRENT_THEME
+            if can_fade:
+                _TRANSITION_FROM = CURRENT_THEME
+            CURRENT_THEME = new_theme
+            self.setStyleSheet(build_window_qss(CURRENT_THEME))
+
+            if can_fade:
+                self._theme_anim.stop()
+                self._theme_anim.setStartValue(0.0)
+                self._theme_anim.setEndValue(1.0)
+                self._theme_anim.start()
+                self._pop_window()
+            else:
+                set_transition_progress(1.0)
 
         # 同步标题栏昼夜切换按钮
         if hasattr(self, "theme_btn"):
@@ -1423,24 +1686,29 @@ class MainWindow(QWidget):
         root.addWidget(self.cred_card)
 
         # ── 按钮行 ──
+        # 按钮工厂：经典主题用 GlassButton；液态玻璃主题用 LiquidGlassButton
+        btn_cls = LiquidGlassButton if THEME_FAMILY == "liquid_glass" else GlassButton
         btn_row = QHBoxLayout()
         btn_row.setSpacing(10)
 
-        self.login_btn = GlassButton("手动登录", primary=True)
+        self.login_btn = btn_cls("手动登录", primary=True)
         self.login_btn.clicked.connect(self.manual_login)
         btn_row.addWidget(self.login_btn)
 
-        self.save_btn = GlassButton("保存配置")
+        self.save_btn = btn_cls("保存配置")
         self.save_btn.clicked.connect(self.save_config)
         btn_row.addWidget(self.save_btn)
 
-        self.logout_btn = GlassButton("下线")
+        self.logout_btn = btn_cls("下线")
         self.logout_btn.clicked.connect(self.manual_logout)
+        if THEME_FAMILY == "liquid_glass":
+            self.logout_btn.set_danger(True)  # 下线：红色玻璃变体
         btn_row.addWidget(self.logout_btn)
 
-        self.diag_btn = GlassButton("诊断")
+        self.diag_btn = btn_cls("诊断")
         self.diag_btn.clicked.connect(self.manual_diagnose)
         btn_row.addWidget(self.diag_btn)
+
 
         root.addLayout(btn_row)
 
@@ -1540,6 +1808,11 @@ class MainWindow(QWidget):
 
     def showEvent(self, event):
         super().showEvent(event)
+        # 液态玻璃主题：纯透明方案（不申请 DWM backdrop）。
+        # 原因：WA_TranslucentBackground 的 WS_EX_LAYERED 窗口与
+        # DWM SystemBackdrop(Mica) 组合时，系统会渲染成深色底（用户看到的黑背景）。
+        # 纯透明 = 直接透出桌面，玻璃按钮/卡片悬浮其上，效果干净自然。
+        # ThemeManager.apply_backdrop 保留，供后续 DirectComposition 方案使用。
         self.setWindowOpacity(0.0)
         self._fade_anim.setStartValue(0.0)
         self._fade_anim.setEndValue(1.0)
@@ -1561,6 +1834,20 @@ class MainWindow(QWidget):
         cw, ch = self.container.width(), self.container.height()
         cx, cy = self.container.pos().x(), self.container.pos().y()
         cr = QRectF(cx, cy, cw, ch)
+
+        if is_glass():
+            # 液态玻璃：背景交由 DWM 毛玻璃（Mica）绘制，
+            # Qt 侧只画一层极淡白色蒙层 + 细白描边，让系统模糊透出来
+            veil = QPainterPath()
+            veil.addRoundedRect(cr, self._radius, self._radius)
+            p.fillPath(veil, QColor(15, 23, 42, 60))
+            p.setPen(QPen(QColor(255, 255, 255, 60), 1))
+            p.drawPath(veil)
+            for card in [self.status_card, self.cred_card]:
+                self._paint_card(p, card)
+            self._paint_accent(p, self.status_card)
+            p.end()
+            return
 
         # 单一柔和投影：多层极低透明度顺滑衰减（避免分层台阶感）
         token = theme_color("shadow")
@@ -1596,6 +1883,13 @@ class MainWindow(QWidget):
         r = QRectF(pos.x() - 2, pos.y() - 2, w.width() + 4, w.height() + 4)
         path = QPainterPath()
         path.addRoundedRect(r, 14, 14)
+
+        if is_glass():
+            # 玻璃卡片：半透明白基底 + 细白描边（背景由 DWM 毛玻璃提供）
+            p.fillPath(path, QColor(255, 255, 255, 20))
+            p.setPen(QPen(QColor(255, 255, 255, 70), 1))
+            p.drawPath(path)
+            return
 
         # 平面卡片：纯色填充 + 细边框（Swiss 极简，去掉玻璃渐变）
         p.fillPath(path, theme_color("card"))
@@ -1639,7 +1933,7 @@ class MainWindow(QWidget):
     # ── 托盘 ──────────────────────────────────────────
     def init_tray(self):
         self.tray_icon = QSystemTrayIcon(self)
-        self.tray_icon.setIcon(create_icon())
+        self.tray_icon.setIcon(create_icon("#9AA3AF"))  # 检测中：灰色状态点
         self.tray_icon.setToolTip(f"{APP_NAME} v{APP_VERSION}")
 
         menu = QMenu()
@@ -2146,6 +2440,9 @@ class MainWindow(QWidget):
         )
         self._settings_dialog.scene_selector.set_mode(
             get_scene_mode(self.config), animate=False
+        )
+        self._settings_dialog.family_selector.set_mode(
+            self.config.get("theme", THEME_DEFAULT), animate=False
         )
 
         if self._settings_dialog.exec() == QDialog.DialogCode.Accepted:

@@ -5,7 +5,7 @@
 - **登录地址：** `http://172.27.253.230/gportal/web/login?wlanacname=SDZYY&wlanuserip=172.30.8.159`
 - **技术栈：** Python 3.13.5 + PySide6 + requests + psutil
 - **打包工具：** PyInstaller → `dist/GiWiFi.exe`
-- **当前版本：** v1.2.1
+- **当前版本：** v1.3.0
 
 ## 功能特性
 
@@ -64,6 +64,13 @@ pyinstaller --onefile --windowed --name GiWiFi main.py
 
 ## 开发日志
 
+### v1.3.0 (2026-08-30)
+- 新增：**液态玻璃主题**（可选）— 设置面板「主题风格」可切换「经典 / 液态玻璃」，重启生效
+  - Windows 11 DWM 原生毛玻璃：主窗口 Mica、弹窗 Acrylic，深色模式标志保证白字可读，系统圆角
+  - 降级链路：DWM 不可用 → SetWindowCompositionAttribute Acrylic → 回退经典外观，全程不崩溃
+  - 玻璃按钮（胶囊 44px、三层自绘、悬浮变亮 220ms、按压下沉回弹 260ms OutBack）、48×28 iOS 胶囊开关、玻璃输入框与卡片
+  - 主题架构重构：themes/ 包（ThemeManager + default + liquid_glass），默认主题原样收编零改动，持久化到 config["theme"]
+  - 切换采用「写入配置 + 重启生效」（毛玻璃需窗口 show 前的透明属性，运行中热切换会失效）；切回经典时彻底清除 DWM backdrop
 ### v1.2.1 (2026-08-30)
 - 新增：**使用场景模式** — 自动判断 / 校园 / 家庭 三档。auto 模式探测校园网认证页可达性判断是否在校（每 5 分钟）；
   家庭网络下自动暂停校园网登录与重试，软件变成纯工具（网速/流量/诊断照常），状态卡与托盘会标注「家庭模式」；
