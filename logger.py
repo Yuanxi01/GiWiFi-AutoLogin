@@ -2,12 +2,10 @@ import os
 import sys
 from datetime import datetime
 
-if getattr(sys, "frozen", False):
-    LOG_DIR = os.path.dirname(sys.executable)
-else:
-    LOG_DIR = os.path.dirname(os.path.abspath(__file__))
+from app_paths import migrate
 
-LOG_FILE = os.path.join(LOG_DIR, "giwifi.log")
+# 日志同样放到用户数据目录
+LOG_FILE = migrate("giwifi.log")
 
 
 def log(msg: str):

@@ -20,7 +20,8 @@ def _default_gateway():
             parts = line.split()
             if len(parts) >= 3 and parts[0] == "0.0.0.0" and parts[1] == "0.0.0.0":
                 gw = parts[2]
-                if gw and gw != "On-link" and re.match(r"\d+\.\d+\.\d+\.\d+", gw):
+                # 中文 Windows 会把 On-link 打印成「在链路上」，两种都要排除
+                if gw and gw not in ("On-link", "在链路上") and re.match(r"\d+\.\d+\.\d+\.\d+", gw):
                     return gw
         for line in out.splitlines():
             parts = line.split()

@@ -13,6 +13,17 @@ from PySide6.QtGui import QColor
 
 THEME_DEFAULT = "default"
 
+# UI 结构参数：经典主题坚持扁平瑞士风——小圆角、贴边卡片、细顶线装饰
+UI_DEFAULT = {
+    "win_radius": 18,
+    "card_radius": 14,
+    "card_gap": 10,
+    "card_merged": False,
+    "btn_height": 38,
+    "decor": "hairline",
+    "card_pad": (16, 12, 16, 14),
+}
+
 
 def _rgba(c: QColor, alpha: int = None) -> str:
     """QColor → Qt QSS rgba() 字符串"""
@@ -41,6 +52,9 @@ LIGHT_THEME = {
     # 主色
     "primary": QColor(0x1D, 0x4E, 0xD8),         # blue-700
     "primary_hover": QColor(0x1E, 0x40, 0xAF),   # blue-800
+    "primary_fill": QColor(0x1D, 0x4E, 0xD8),    # 主按钮填充（极光主题会换成浅底）
+    "primary2": QColor(0x1D, 0x4E, 0xD8),        # 渐变终点（经典主题不用渐变）
+    "on_primary": QColor(255, 255, 255),         # 主按钮文字色
     "focus_ring": QColor(29, 78, 216, 110),
     # 语义色
     "success": QColor(0x15, 0x80, 0x3D),         # green-700 文字
@@ -75,6 +89,9 @@ DARK_THEME = {
     # 主色
     "primary": QColor(0x25, 0x63, 0xEB),         # blue-600（白字 4.5:1）
     "primary_hover": QColor(0x3B, 0x82, 0xF6),   # blue-500
+    "primary_fill": QColor(0x25, 0x63, 0xEB),
+    "primary2": QColor(0x25, 0x63, 0xEB),
+    "on_primary": QColor(255, 255, 255),
     "focus_ring": QColor(96, 165, 250, 150),
     # 语义色
     "success": QColor(0x4A, 0xDE, 0x80),         # green-400 文字（暗底高对比）

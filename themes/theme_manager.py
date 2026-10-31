@@ -4,9 +4,9 @@ themes/theme_manager.py —— 主题管理器（加载 / 切换 / 持久化 / D
 
 职责
 ----
-1. 主题家族持久化：config["theme"] = "default" | "liquid_glass"，
+1. 主题家族持久化：config["theme"] = "innovate" | "default" | "aurora"，
    读写复用项目现有的 config.load_config / save_config，重启后记住选择。
-2. DWM 原生毛玻璃应用与移除（仅液态玻璃主题使用）：
+2. DWM 原生毛玻璃应用与移除（历史遗留，当前主题未使用，保留备查）：
    - 首选：Win11 DwmSetWindowAttribute + DWMWA_SYSTEMBACKDROP_TYPE
      （主窗口 2 = Mica，弹窗 3 = Acrylic），并设置
      DWMWA_USE_IMMERSIVE_DARK_MODE(20) 保证玻璃上的白字可读。
@@ -34,7 +34,13 @@ import sys
 from ctypes import wintypes
 
 from themes.default import THEME_DEFAULT
-from themes.liquid_glass import THEME_GLASS
+from themes.aurora import THEME_AURORA
+from themes.innovate import THEME_INNOVATE
+
+# 所有可选主题家族（设置面板按此顺序展示）
+# 蓝白创新排第一并作为默认主题，经典第二
+THEME_FAMILIES = (THEME_INNOVATE, THEME_DEFAULT, THEME_AURORA)
+DEFAULT_FAMILY = THEME_INNOVATE
 
 # ── DWM 常量 ─────────────────────────────────────────────
 DWMWA_USE_IMMERSIVE_DARK_MODE = 20     # BOOL：深色模式（白字可读）
@@ -111,13 +117,14 @@ class ThemeManager:
     @staticmethod
     def load_family(cfg: dict) -> str:
         """从配置读取主题家族，非法值回退 default（默认主题零改动启动）"""
-        family = cfg.get("theme", THEME_DEFAULT)
-        return family if family in (THEME_DEFAULT, THEME_GLASS) else THEME_DEFAULT
+        family = cfg.get("theme", DEFAULT_FAMILY)
+        # 老配置里的 liquid_glass 已经删掉了，统一回落到默认主题
+        return family if family in THEME_FAMILIES else DEFAULT_FAMILY
 
     @staticmethod
     def save_family(cfg: dict, family: str) -> None:
         """写入 config["theme"]（由调用方负责 save_config 落盘 + 提示重启）"""
-        if family in (THEME_DEFAULT, THEME_GLASS):
+        if family in THEME_FAMILIES:
             cfg["theme"] = family
 
     # ── DWM 毛玻璃（含降级链路）──────────────────────
