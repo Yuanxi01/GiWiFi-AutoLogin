@@ -6,7 +6,7 @@ import psutil
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QDialog, QDialogButtonBox,
-    QSystemTrayIcon, QMenu, QMessageBox, QTextEdit,
+    QSystemTrayIcon, QMenu, QMessageBox, QTextEdit, QToolTip,
     QGraphicsDropShadowEffect,
 )
 from PySide6.QtCore import (
@@ -46,11 +46,20 @@ OFFLINE_COUNT_KEY = "offline_count"
 SCENE_MODE_KEY = "scene_mode"
 # 多账户列表配置键
 ACCOUNTS_KEY = "accounts"
+# 当前在线（已登录）的账号，用于判断"手动登录 / 切换账号"
+ONLINE_ACCOUNT_KEY = "online_account"
+
+# 状态卡里三行小字的显示开关
+SHOW_ACCOUNT_KEY = "show_account"
+SHOW_SPEED_KEY = "show_speed"
+SHOW_TRAFFIC_KEY = "show_traffic"
+# 标题下方是否展开"当前账号"一行（由标题栏用户按钮切换）
+SHOW_ACCOUNT_BANNER_KEY = "show_account_banner"
 # 关闭窗口时的行为：False=收进托盘（默认） / True=直接退出
 QUIT_ON_CLOSE_KEY = "quit_on_close"
 
 APP_NAME = "GiWiFi自动登录"
-APP_VERSION = "1.4.0"
+APP_VERSION = "1.4.24"
 APP_AUTHOR = "YuanXi"
 
 # 检查更新：GitHub 最新 Release
@@ -1109,6 +1118,79 @@ class GlassButton(QPushButton):
 # ═══════════════════════════════════════════════════════
 #  设置图标按钮（自定义绘制齿轮）
 # ═══════════════════════════════════════════════════════
+class UserBadgeButton(QPushButton):
+    """标题栏里的"当前账号"小按钮：鼠标悬浮或点一下都会显示当前登录账号"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._hovered = False
+        self._online = False
+        self._active = False      # 点击后处于"展开账号条"状态，图标变蓝
+        self._account = ""
+        self.setFixedSize(20, 20)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setToolTip("当前账号")
+
+    def set_account(self, account: str, online: bool):
+        self._account = (account or "").strip()
+        self._online = bool(online)
+        self.update()
+
+    def set_active(self, active: bool):
+        """展开状态：图标填成主色（蓝），收起时灰色"""
+        self._active = bool(active)
+        self.update()
+
+    def tip_text(self) -> str:
+        if not self._online:
+            return "当前未登录"
+        if self._account:
+            return f"当前账号 {self._account}"
+        return "当前账号 识别中…"
+
+    def _popup(self):
+        self.setToolTip(self.tip_text())
+        gp = self.mapToGlobal(QPoint(self.width() // 2 - 60, self.height() + 6))
+        QToolTip.showText(gp, self.tip_text(), self)
+
+    def enterEvent(self, event):
+        self._hovered = True
+        self.update()
+        self._popup()
+
+    def leaveEvent(self, event):
+        self._hovered = False
+        self.update()
+        QToolTip.hideText()
+
+    def mousePressEvent(self, event):
+        self._popup()
+        super().mousePressEvent(event)
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+
+        if self._active or self._hovered:
+            accent = theme_color("primary")
+            bg_alpha = 68 if self._active else 38
+        else:
+            accent = theme_color("text_ter")
+            bg_alpha = 38
+        p.setPen(QPen(QColor(accent.red(), accent.green(), accent.blue(),
+                             150 if self._active else 102), 1))
+        p.setBrush(QColor(accent.red(), accent.green(), accent.blue(), bg_alpha))
+        p.drawEllipse(1, 1, 18, 18)
+
+        # 头像：小圆脑袋 + 半圆肩膀
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(accent)
+        p.drawEllipse(QPointF(10.0, 7.4), 2.7, 2.7)
+        p.drawChord(QRectF(5.2, 11.0, 9.6, 9.6), 0, 180 * 16)
+
+        p.end()
+
+
 class SettingsButton(QPushButton):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1781,8 +1863,8 @@ class SettingsDialog(_DraggableDialogMixin, QDialog):
         outer.addWidget(self._container)
 
         layout = QVBoxLayout(self._container)
-        layout.setContentsMargins(20, 16, 20, 18)
-        layout.setSpacing(12)
+        layout.setContentsMargins(20, 14, 20, 16)
+        layout.setSpacing(9)
 
         # 标题
         self.title_label = QLabel("设置")
@@ -1805,8 +1887,8 @@ class SettingsDialog(_DraggableDialogMixin, QDialog):
             box.setObjectName("settingsGroup")
             self._group_boxes.append(box)
             lay = QVBoxLayout(box)
-            lay.setContentsMargins(14, 10, 14, 12)
-            lay.setSpacing(6)
+            lay.setContentsMargins(14, 8, 14, 10)
+            lay.setSpacing(4)
             return box, lay
 
         def section_label(text: str, store: bool = False) -> QLabel:
@@ -1819,7 +1901,7 @@ class SettingsDialog(_DraggableDialogMixin, QDialog):
 
         def switch_row(text: str, switch: ToggleSwitch) -> QHBoxLayout:
             row = QHBoxLayout()
-            row.setContentsMargins(0, 3, 0, 3)
+            row.setContentsMargins(0, 1, 0, 1)
             row.setSpacing(10)
             lb = QLabel(text)
             lb.setFont(APP_FONT_SEC)
@@ -1839,6 +1921,14 @@ class SettingsDialog(_DraggableDialogMixin, QDialog):
         g1.addLayout(switch_row("开机静默模式", self.silent_start_switch))
         g1.addLayout(switch_row("关闭窗口即退出", self.quit_on_close_switch))
 
+        # 状态卡显示项
+        self.show_account_switch = ToggleSwitch("", self.config.get(SHOW_ACCOUNT_KEY, True))
+        self.show_speed_switch = ToggleSwitch("", self.config.get(SHOW_SPEED_KEY, True))
+        self.show_traffic_switch = ToggleSwitch("", self.config.get(SHOW_TRAFFIC_KEY, True))
+        g1.addLayout(switch_row("显示当前账号", self.show_account_switch))
+        g1.addLayout(switch_row("显示实时网速", self.show_speed_switch))
+        g1.addLayout(switch_row("显示今日流量", self.show_traffic_switch))
+
         self.log_btn = GlassButton("查看")
         self.log_btn.setFixedHeight(26)
         self.log_btn.setFixedWidth(64)
@@ -1854,12 +1944,12 @@ class SettingsDialog(_DraggableDialogMixin, QDialog):
         self.scene_selector = SceneModeSelector(get_scene_mode(self.config))
         g2.addWidget(self.scene_selector)
 
-        g2.addSpacing(6)
+        g2.addSpacing(4)
         g2.addWidget(section_label("主题模式（白天 / 黑夜）", store=True))
         self.theme_selector = ThemeModeSelector(get_theme_mode(self.config))
         g2.addWidget(self.theme_selector)
 
-        g2.addSpacing(6)
+        g2.addSpacing(4)
         g2.addWidget(section_label("主题风格", store=True))
         self.family_selector = ThemeModeSelector(
             ThemeManager.load_family(self.config),
@@ -1921,6 +2011,9 @@ class SettingsDialog(_DraggableDialogMixin, QDialog):
         self.config[DARK_MODE_KEY] = (mode == "dark")  # 兼容旧字段
         self.config[SCENE_MODE_KEY] = self.scene_selector.mode()
         self.config[QUIT_ON_CLOSE_KEY] = self.quit_on_close_switch.isChecked()
+        self.config[SHOW_ACCOUNT_KEY] = self.show_account_switch.isChecked()
+        self.config[SHOW_SPEED_KEY] = self.show_speed_switch.isChecked()
+        self.config[SHOW_TRAFFIC_KEY] = self.show_traffic_switch.isChecked()
         self.config["theme"] = self.family_selector.mode()  # 主题家族（重启生效）
         return self.config
 
@@ -2210,7 +2303,7 @@ class MainWindow(QWidget):
 
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)
         self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setFixedSize(APP_WIDTH, APP_HEIGHT)
+        self._apply_window_size()
         self.setWindowIcon(create_icon("#9AA3AF"))  # 检测中：灰色状态点
 
         # 应用主题
@@ -2336,6 +2429,9 @@ class MainWindow(QWidget):
         self.speed_label.setStyleSheet(f"color:{sec_color};background:transparent")
         self.traffic_label.setStyleSheet(f"color:{ter_color};background:transparent")
         self.log_label.setStyleSheet(f"color:{sec_color};background:transparent")
+        if hasattr(self, "title_account"):
+            self.title_account.setStyleSheet(
+                f"color:{ter_color};background:transparent;border:none;")
         self.ver_label.setStyleSheet(f"color:{ter_color};background:transparent")
 
     def _set_status_look(self, state: str, animate: bool = True):
@@ -2368,8 +2464,8 @@ class MainWindow(QWidget):
         outer.addWidget(self.container)
 
         root = QVBoxLayout(self.container)
-        root.setContentsMargins(22, 14, 22, 14)
-        root.setSpacing(10)
+        root.setContentsMargins(22, 12, 22, 12)
+        root.setSpacing(9)
 
         # 两张内容卡放进同一个容器：玻璃主题把间距设成 0，两块合并成一整块
         # 大玻璃面板（中间一条分隔线），经典 / 极光则是 10px 分开的独立卡片
@@ -2398,13 +2494,34 @@ class MainWindow(QWidget):
         lights.setSpacing(6)
         lights.addWidget(self.btn_close)
         lights.addWidget(self.btn_mini)
+        # 关键：容器被拉宽到和右侧按钮组等宽后，多余空间会被摊到两盏灯之间，
+        # 红黄灯就被拉开了。加一个 stretch 把两盏灯顶在左边，空余留在右侧。
+        lights.addStretch(1)
+        # 存下来：右边按钮区变宽/变窄时要同步左边宽度，否则标题会偏离窗口中线
+        self.title_lights = lights_container
         title_bar.addWidget(lights_container)
 
         # 中间标题
+        # 标题上下两行：上面标题，下面账号（账号默认隐藏，点用户按钮显示）
+        self.title_group = QWidget()
+        tg = QVBoxLayout(self.title_group)
+        tg.setContentsMargins(0, 0, 0, 0)
+        tg.setSpacing(0)
+
         self.title_label = QLabel(APP_NAME)
         self.title_label.setFont(APP_FONT_TITLE)
         self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_bar.addWidget(self.title_label, 1)
+        tg.addWidget(self.title_label)
+
+        self.title_account = QLabel("")
+        self.title_account.setFont(APP_FONT_SEC)
+        self.title_account.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.title_account.setStyleSheet(
+            f"color:{CURRENT_THEME['text_ter'].name()};background:transparent;")
+        self.title_account.setVisible(False)
+        tg.addWidget(self.title_account)
+
+        title_bar.addWidget(self.title_group, 1)
 
         # 右侧昼夜切换 + 设置按钮
         self.theme_btn = ThemeToggleButton(self.config.get(DARK_MODE_KEY, False))
@@ -2417,17 +2534,23 @@ class MainWindow(QWidget):
         settings_layout = QHBoxLayout(settings_container)
         settings_layout.setContentsMargins(0, 0, 0, 0)
         settings_layout.setSpacing(6)
+        self.user_btn = UserBadgeButton()
+        self.user_btn.setToolTip("显示 / 隐藏当前账号")
+        self.user_btn.clicked.connect(self.toggle_account_banner)
+        settings_layout.addWidget(self.user_btn)
         settings_layout.addWidget(self.theme_btn)
         settings_layout.addWidget(self.settings_btn)
+        self.title_actions = settings_container
         title_bar.addWidget(settings_container)
 
         root.addLayout(title_bar)
+
 
         # ── 状态卡片 ──
         self.status_card = QWidget()
         sc = QVBoxLayout(self.status_card)
         sc.setContentsMargins(*ui["card_pad"])
-        sc.setSpacing(8)
+        sc.setSpacing(9)
 
         top = QHBoxLayout()
         top.setSpacing(10)
@@ -2494,6 +2617,7 @@ class MainWindow(QWidget):
         # 账号行：输入框右侧挂一个下拉箭头，点开就是已保存账户列表
         r1, self.username_input = make_input_row("账号", "请输入校园网账号")
         self.username_input.setText(self.config.get("username", ""))
+        self.username_input.textChanged.connect(self._update_login_button)
         self.account_btn = AccountMenuButton()
         self.account_btn.clicked.connect(self.show_account_menu)
         r1.addWidget(self.account_btn)
@@ -2536,6 +2660,15 @@ class MainWindow(QWidget):
 
         # 蓝白创新：这些按钮的扫光要跟着主窗口的动效相位走
         self._fx_buttons = [self.login_btn, self.save_btn, self.logout_btn, self.diag_btn]
+
+        # 按"当前在线账号 vs 选中账号"初始化登录按钮文字
+        self._update_login_button()
+        # 按设置隐藏不需要的状态行
+        self._apply_display_options()
+        # 标题居中（左右两块等宽）
+        self._sync_title_centering()
+        # 恢复上次的账号条展开状态
+        self._apply_banner_state()
 
         root.addLayout(btn_row)
 
@@ -2622,7 +2755,7 @@ class MainWindow(QWidget):
 
     def _on_pop_finished(self):
         if self._pop_home is not None:
-            self.setFixedSize(APP_WIDTH, APP_HEIGHT)
+            self._apply_window_size()
             self.setGeometry(self._pop_home)
             self._pop_home = None
 
@@ -3083,13 +3216,26 @@ class MainWindow(QWidget):
             return f"{speed_bytes / (1024 * 1024):.1f}MB/s"
 
     def on_status_changed(self, online: bool):
-        # 只在状态真正变化时更新 UI 和发送通知
+        # 只在状态真正变化时更新 UI 和发送通知；
+        # 但内部状态可能被别处改过（比如手动下线），这里顺手对齐，避免长期失同步
         if self.online == online:
+            want = "online" if online else "offline"
+            if self._status_state != want:
+                self._status_state = want
+                self._update_login_button()
             return
 
         self.online = online
         if online:
             self._status_state = "online"
+            # 兼容：本次启动前就已经在线（不是本程序刚登录的），
+            # 但有上一次登录留下的 logout_url —— 说明在线的大概率就是 config 里的账号，
+            # 直接认下来，"切换账号"按钮才有依据
+            if not self.config.get(ONLINE_ACCOUNT_KEY) and self.config.get("logout_url"):
+                _u = (self.config.get("username") or "").strip()
+                if _u:
+                    self.config[ONLINE_ACCOUNT_KEY] = _u
+                    save_config(self.config)
             self.status_label.setText("已连接")
             self.tray_icon.setIcon(create_icon("#22C55E"))
             self.status_desc.setText("网络已连通，可以正常上网")
@@ -3119,6 +3265,8 @@ class MainWindow(QWidget):
                             QSystemTrayIcon.MessageIcon.Information)
         # 场景可能改变状态描述文案（家庭模式）
         self._apply_scene()
+        # 上线 / 离线都会影响按钮是「手动登录」还是「切换账号」
+        self._update_login_button()
 
     # ── 业务 ──────────────────────────────────────────
     def _start_login(self, username: str, password: str, portal_url: str,
@@ -3134,17 +3282,29 @@ class MainWindow(QWidget):
         self._login_worker = LoginWorker(username, password, portal_url,
                                          verify_online=verify_online, parent=self)
         self._login_worker.resultReady.connect(
-            lambda result, s=source: self._on_login_result(result, s))
+            lambda result, s=source, u=username: self._on_login_result(result, s, u))
         self._login_worker.start()
         return True
 
-    def _on_login_result(self, result: dict, source: str):
+    def _on_login_result(self, result: dict, source: str, username: str = ""):
         """后台登录线程回来后的统一处理"""
         msg = result.get("msg", "")
         if msg:
             self.log(msg)
 
         if result.get("already"):
+            # 网络本来就是通的：这就是在线状态，别让界面停在"未登录"
+            self.online = True
+            self._status_state = "online"
+            # 网络已连通但没执行登录：优先用这次尝试的账号作为"当前在线"的记录，
+            # 其次退回配置里的账号 —— 否则状态卡会一直显示"未登录"，和事实不符
+            if not self.config.get(ONLINE_ACCOUNT_KEY):
+                _u = (username or self.config.get("username") or "").strip()
+                if _u:
+                    self.config[ONLINE_ACCOUNT_KEY] = _u
+                    save_config(self.config)
+                    self.log(f"网络已连通，按账号 {_u} 记为当前在线")
+            self._update_login_button()
             self.notify("网络正常", msg or "当前已连接网络，无需登录",
                         QSystemTrayIcon.MessageIcon.Information)
             return
@@ -3153,7 +3313,14 @@ class MainWindow(QWidget):
             logout_url = result.get("logout_url")
             if logout_url:
                 self.config["logout_url"] = logout_url
-                save_config(self.config)
+            # 记住"当前在线的是谁"：切换账号按钮靠它判断
+            if username:
+                self.config[ONLINE_ACCOUNT_KEY] = username
+            save_config(self.config)
+            # 登录成功 = 一定在线，把状态拉正（防止此前的状态失同步导致一直显示未登录）
+            self.online = True
+            self._status_state = "online"
+            self._update_login_button()
             self._login_retry_count = 0
             self._login_retry_timer.stop()
             if source == "manual":
@@ -3226,6 +3393,111 @@ class MainWindow(QWidget):
         self.log(f"正在重试自动登录（第{self._login_retry_count + 1}次）...")
         self._start_login(u, pw, portal, "retry")
 
+    def _apply_display_options(self):
+        """按设置显示/隐藏状态卡里的三行小字"""
+        for wdg, key in ((getattr(self, "user_btn", None), SHOW_ACCOUNT_KEY),
+                         (getattr(self, "speed_label", None), SHOW_SPEED_KEY),
+                         (getattr(self, "traffic_label", None), SHOW_TRAFFIC_KEY)):
+            if wdg is None:
+                continue
+            wdg.setVisible(self.config.get(key, True))
+        # 用户按钮被设置项隐藏时，账号行也一并收起（否则没有入口可以关掉它）。
+        # 注意这里读配置而不是 isVisible()：窗口还没 show 时 isVisible() 恒为 False，
+        # 会把"按钮其实要显示"误判成"被隐藏"，启动时账号行就再也出不来了。
+        ta = getattr(self, "title_account", None)
+        if ta is not None and not self.config.get(SHOW_ACCOUNT_KEY, True):
+            ta.setVisible(False)
+            self._banner_on = False
+        self._sync_title_centering()
+        self._apply_window_size()
+
+    def _apply_window_size(self):
+        """
+        平时就是原始的 440×464（比例和旧版完全一致）；
+        只有展开"标题下方账号"那一行时，窗口临时长高一行，避免挤压缩放卡片。
+        """
+        extra = 0
+        ta = getattr(self, "title_account", None)
+        if ta is not None and getattr(self, "_banner_on", False):
+            extra = ta.sizeHint().height()
+        self.setFixedSize(APP_WIDTH, APP_HEIGHT + extra)
+
+    def toggle_account_banner(self):
+        """标题栏用户按钮：显示 / 隐藏标题旁边那串账号"""
+        show = not getattr(self, "_banner_on", False)
+        self._banner_on = show
+        self.config[SHOW_ACCOUNT_BANNER_KEY] = show
+        save_config(self.config)
+        self.title_account.setVisible(show)
+        self.user_btn.set_active(show)
+        self._apply_window_size()
+        self._update_account_badge()
+
+    def _apply_banner_state(self):
+        show = bool(self.config.get(SHOW_ACCOUNT_BANNER_KEY, False))
+        self._banner_on = show
+        self.title_account.setVisible(show)
+        self.user_btn.set_active(show)
+        self._apply_window_size()
+
+    def _sync_title_centering(self):
+        """
+        标题居中的关键：左边（红绿灯）和右边（用户/昼夜/设置）两块宽度必须一样，
+        否则 QHBoxLayout 把剩余空间按 stretch 分配后，标题会被挤偏。
+        右边按钮增减（比如隐藏用户按钮）后要重新调一次。
+        """
+        left = getattr(self, "title_lights", None)
+        right = getattr(self, "title_actions", None)
+        if left is None or right is None:
+            return
+        right.layout().activate()
+        want = right.sizeHint().width()
+        if left.width() != want:
+            left.setFixedWidth(want)
+
+    def _update_account_badge(self):
+        """把"当前在线账号"同步到标题栏的用户小按钮（悬浮/点击时显示）"""
+        btn = getattr(self, "user_btn", None)
+        if btn is None:
+            return
+        online = getattr(self, "_status_state", "") == "online"
+        cur = (self.config.get(ONLINE_ACCOUNT_KEY) or "").strip()
+        btn.set_account(cur, online)
+        ta = getattr(self, "title_account", None)
+        if ta is not None:
+            # 只显示账号本身，不加任何说明文字
+            ta.setText(cur if (online and cur) else "")
+
+    def _update_login_button(self):
+        """
+        登录按钮的文字随状态变化：
+          · 在线、且选中的账号不是当前在线账号 → 「切换账号」
+          · 其他情况（离线 / 选中的就是在线账号 / 没选账号）→ 「手动登录」
+        当前在线账号来源：本程序登录成功时记进 config，下线时清空。
+        """
+        btn = getattr(self, "login_btn", None)
+        if btn is None:
+            return
+        online = getattr(self, "_status_state", "") == "online"
+        cur = (self.config.get(ONLINE_ACCOUNT_KEY) or "").strip()
+        sel = self.username_input.text().strip() if hasattr(self, "username_input") else ""
+
+        if online and cur and sel and sel != cur:
+            text, tip = "切换账号", f"当前在线：{cur}，点击切换到 {sel}"
+        else:
+            text = "手动登录"
+            if online and cur:
+                tip = f"当前在线：{cur}"
+            elif sel:
+                tip = f"使用 {sel} 登录校园网"
+            else:
+                tip = "登录校园网"
+
+        if btn.text() != text:
+            btn.setText(text)
+        btn.setToolTip(tip)
+        self._update_account_badge()
+
     def manual_login(self):
         try:
             if not self._scene_school_active():
@@ -3239,6 +3511,22 @@ class MainWindow(QWidget):
             if not u or not pw:
                 QMessageBox.warning(self, "提示", "请先输入账号和密码")
                 return
+            # 切换账号：当前在线的是另一个账号，先把它下线，再登录新的
+            cur = (self.config.get(ONLINE_ACCOUNT_KEY) or "").strip()
+            if self._status_state == "online" and cur and u != cur:
+                lu = self.config.get("logout_url", "")
+                if lu:
+                    self.log(f"切换账号：先下线当前账号 {cur}")
+                    ok, lmsg = logout_giwifi(lu)
+                    self.log(f"下线结果：{lmsg}")
+                    self.config.pop("logout_url", None)
+                    self.config.pop(ONLINE_ACCOUNT_KEY, None)
+                    save_config(self.config)
+                    self._update_login_button()
+                else:
+                    self.log(f"切换账号：没有下线信息，直接尝试登录 {u}")
+                    self.notify("提示", "没有当前账号的下线信息，可能已在其他设备下线，直接尝试登录新账号",
+                                QSystemTrayIcon.MessageIcon.Information)
             self.log("正在检测网络并登录...")
             # 检测可达性和登录一起丢到后台线程，避免界面卡住
             self._start_login(u, pw, self.config.get("portal_url", ""),
@@ -3263,7 +3551,14 @@ class MainWindow(QWidget):
                 self.notify("下线成功", "已断开校园网连接",
                             QSystemTrayIcon.MessageIcon.Information)
                 self.config.pop("logout_url", None)
+                self.config.pop(ONLINE_ACCOUNT_KEY, None)
                 save_config(self.config)
+                # 下线后按钮回到「手动登录」。
+                # 注意 self.online 也要一起改：只改 _status_state 会造成"内部状态说离线、
+                # 检测线程以为已在线"的失同步，之后哪怕登录成功也一直显示未登录。
+                self.online = False
+                self._status_state = "offline"
+                self._update_login_button()
             else:
                 self.notify("下线失败", msg,
                             QSystemTrayIcon.MessageIcon.Warning)
@@ -3363,6 +3658,7 @@ class MainWindow(QWidget):
                 self.username_input.setText(username)
                 self.password_input.setText(password)
                 self.config["username"] = username
+                self._update_login_button()
                 self.config["password"] = password
                 save_config(self.config)
                 self.log(f"已切换到账户 {username}")
@@ -3573,6 +3869,15 @@ class MainWindow(QWidget):
         self._settings_dialog.quit_on_close_switch.setChecked(
             self.config.get(QUIT_ON_CLOSE_KEY, False)
         )
+        self._settings_dialog.show_account_switch.setChecked(
+            self.config.get(SHOW_ACCOUNT_KEY, True)
+        )
+        self._settings_dialog.show_speed_switch.setChecked(
+            self.config.get(SHOW_SPEED_KEY, True)
+        )
+        self._settings_dialog.show_traffic_switch.setChecked(
+            self.config.get(SHOW_TRAFFIC_KEY, True)
+        )
         self._settings_dialog.theme_selector.set_mode(
             get_theme_mode(self.config), animate=False
         )
@@ -3588,6 +3893,7 @@ class MainWindow(QWidget):
             save_config(self.config)
             # 应用深色模式
             self._apply_theme()
+            self._apply_display_options()
             self.update()
             self.log("设置已保存")
 
